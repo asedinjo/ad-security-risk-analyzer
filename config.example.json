@@ -1,0 +1,20 @@
+{
+  "IgnoredSamAccountNamePatterns": [
+    "HealthMailbox*"
+  ],
+  "AllowedPrivilegedGroupMembers": {
+    "Domain Admins": [
+      "CONTOSO\\adm-*",
+      "CONTOSO\\Administrator"
+    ],
+    "Enterprise Admins": [
+      "CONTOSO\\adm-forest-*"
+    ],
+    "Schema Admins": [],
+    "Administrators": [
+      "CONTOSO\\Domain Admins",
+      "CONTOSO\\Enterprise Admins"
+    ],
+    "DnsAdmins": []
+  }
+}
