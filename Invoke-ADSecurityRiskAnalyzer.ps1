@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Read-only Active Directory sigurnosni analizator za MSP klijentske domene.
+    Read-only Active Directory sigurnosni analizator za lokalne AD domene.
 
 .DESCRIPTION
     Prikuplja AD DS korisnike, racunare, grupe, politiku lozinki, metapodatke
@@ -306,39 +306,39 @@ function Get-FindingRuleMetadata {
 
     switch -Regex ((ConvertTo-CompatibleString $Id)) {
         '^AD-USER-008$' { $riskArea = 'AttackPath'; $weight = 90; $cap = 96; $scale = 1.0; break }
-        '^AD-COMP-004$' { $riskArea = 'AttackPath'; $weight = 72; $cap = 88; $scale = 4.0; break }
+        '^AD-COMP-004$' { $riskArea = 'AttackPath'; $weight = 45; $cap = 88; $scale = 4.0; break }
         '^AD-USER-006$' {
             $riskArea = 'AttackPath'
-            if ($Severity -eq 'Critical') { $weight = 82; $cap = 92; $scale = 2.0 }
-            else { $weight = 55; $cap = 75; $scale = 8.0 }
+            if ($Severity -eq 'Critical') { $weight = 55; $cap = 92; $scale = 2.0 }
+            else { $weight = 34; $cap = 75; $scale = 8.0 }
             break
         }
         '^AD-USER-007$' {
             $riskArea = 'AttackPath'
-            if ($Severity -eq 'Critical') { $weight = 84; $cap = 93; $scale = 2.0 }
-            elseif ($Severity -eq 'High') { $weight = 58; $cap = 78; $scale = 10.0 }
-            else { $weight = 30; $cap = 50; $scale = 18.0 }
+            if ($Severity -eq 'Critical') { $weight = 55; $cap = 93; $scale = 2.0 }
+            elseif ($Severity -eq 'High') { $weight = 34; $cap = 78; $scale = 10.0 }
+            else { $weight = 18; $cap = 50; $scale = 18.0 }
             break
         }
         '^AD-USER-009$' {
             $riskArea = 'AttackPath'
-            if ($Severity -eq 'Critical') { $weight = 82; $cap = 92; $scale = 2.0 }
-            else { $weight = 55; $cap = 75; $scale = 7.0 }
+            if ($Severity -eq 'Critical') { $weight = 55; $cap = 92; $scale = 2.0 }
+            else { $weight = 34; $cap = 75; $scale = 7.0 }
             break
         }
-        '^AD-COMP-005$' { $riskArea = 'AttackPath'; $weight = 35; $cap = 58; $scale = 12.0; break }
+        '^AD-COMP-005$' { $riskArea = 'AttackPath'; $weight = 24; $cap = 58; $scale = 12.0; break }
 
         '^AD-PRIV-002$' {
             $riskArea = 'PrivilegedAccess'
-            if ($Severity -eq 'High') { $weight = 68; $cap = 88; $scale = 1.0 }
-            else { $weight = 36; $cap = 55; $scale = 1.0 }
+            if ($Severity -eq 'High') { $weight = 34; $cap = 88; $scale = 1.0 }
+            else { $weight = 18; $cap = 55; $scale = 1.0 }
             break
         }
-        '^AD-PRIV-004$' { $riskArea = 'PrivilegedAccess'; $weight = 62; $cap = 82; $scale = 4.0; break }
+        '^AD-PRIV-004$' { $riskArea = 'PrivilegedAccess'; $weight = 34; $cap = 82; $scale = 4.0; break }
         '^AD-PRIV-005$' {
             $riskArea = 'PrivilegedAccess'
-            if ($Severity -eq 'High') { $weight = 50; $cap = 65; $scale = 6.0 }
-            else { $weight = 28; $cap = 45; $scale = 10.0 }
+            if ($Severity -eq 'High') { $weight = 24; $cap = 65; $scale = 6.0 }
+            else { $weight = 12; $cap = 45; $scale = 10.0 }
             break
         }
         '^AD-PRIV-006$' {
@@ -363,17 +363,17 @@ function Get-FindingRuleMetadata {
         }
         '^AD-PRIV-001$' {
             $riskArea = 'PrivilegedAccess'
-            if ($Severity -eq 'High') { $weight = 58; $cap = 75; $scale = 1.0 }
-            else { $weight = 28; $cap = 45; $scale = 1.0 }
+            if ($Severity -eq 'High') { $weight = 30; $cap = 75; $scale = 1.0 }
+            else { $weight = 14; $cap = 45; $scale = 1.0 }
             break
         }
         '^AD-PRIV-003$' {
             $riskArea = 'PrivilegedAccess'
-            if ($Severity -eq 'High') { $weight = 50; $cap = 70; $scale = 4.0 }
-            else { $weight = 28; $cap = 50; $scale = 8.0 }
+            if ($Severity -eq 'High') { $weight = 25; $cap = 70; $scale = 4.0 }
+            else { $weight = 10; $cap = 50; $scale = 8.0 }
             break
         }
-        '^AD-USER-012$' { $riskArea = 'PrivilegedAccess'; $weight = 22; $cap = 40; $scale = 10.0; break }
+        '^AD-USER-012$' { $riskArea = 'PrivilegedAccess'; $weight = 10; $cap = 40; $scale = 10.0; break }
 
         '^AD-AUTH-001$' {
             $riskArea = 'Authentication'
@@ -393,21 +393,26 @@ function Get-FindingRuleMetadata {
 
         '^AD-POLICY-001$' {
             $riskArea = 'PasswordPolicy'
-            if ($Severity -eq 'High') { $weight = 35; $cap = 50; $scale = 1.0 }
-            else { $weight = 18; $cap = 35; $scale = 1.0 }
+            if ($Severity -eq 'High') { $weight = 18; $cap = 50; $scale = 1.0 }
+            else { $weight = 8; $cap = 35; $scale = 1.0 }
             break
         }
-        '^AD-POLICY-003$' { $riskArea = 'PasswordPolicy'; $weight = 50; $cap = 70; $scale = 1.0; break }
-        '^AD-POLICY-006$' { $riskArea = 'PasswordPolicy'; $weight = 25; $cap = 45; $scale = 3.0; break }
-        '^AD-POLICY-004$|^AD-POLICY-005$' { $riskArea = 'PasswordPolicy'; $weight = 5; $cap = 15; $scale = 2.0; break }
+        '^AD-POLICY-003$' { $riskArea = 'PasswordPolicy'; $weight = 30; $cap = 70; $scale = 1.0; break }
+        '^AD-POLICY-006$' { $riskArea = 'PasswordPolicy'; $weight = 12; $cap = 45; $scale = 3.0; break }
+        '^AD-POLICY-004$|^AD-POLICY-005$' {
+            $riskArea = 'PasswordPolicy'
+            if ($Severity -eq 'Info') { $weight = 0; $cap = 3; $scale = 1.0 }
+            else { $weight = 5; $cap = 15; $scale = 2.0 }
+            break
+        }
         '^AD-POLICY-002$' { $riskArea = 'PasswordPolicy'; $weight = 0; $cap = 3; $scale = 1.0; break }
 
         '^AD-USER-001$' { $riskArea = 'AccountHygiene'; $weight = 50; $cap = 65; $scale = 1.0; break }
         '^AD-USER-002$' {
             $riskArea = 'AccountHygiene'
-            if ($Severity -eq 'High') { $weight = 45; $cap = 65; $scale = 1.0 }
-            elseif ($Severity -eq 'Medium') { $weight = 20; $cap = 35; $scale = 1.0 }
-            else { $weight = 8; $cap = 18; $scale = 1.0 }
+            if ($Severity -eq 'High') { $weight = 22; $cap = 65; $scale = 1.0 }
+            elseif ($Severity -eq 'Medium') { $weight = 8; $cap = 35; $scale = 1.0 }
+            else { $weight = 4; $cap = 18; $scale = 1.0 }
             break
         }
         '^AD-USER-003$' { $riskArea = 'AccountHygiene'; $weight = 5; $cap = 20; $scale = 150.0; break }
@@ -421,12 +426,12 @@ function Get-FindingRuleMetadata {
         }
 
         '^AD-COMP-001$' { $riskArea = 'ComputerHygiene'; $weight = 4; $cap = 18; $scale = 180.0; break }
-        '^AD-COMP-002$' { $riskArea = 'ComputerHygiene'; $weight = 10; $cap = 30; $scale = 100.0; break }
+        '^AD-COMP-002$' { $riskArea = 'ComputerHygiene'; $weight = 6; $cap = 30; $scale = 100.0; break }
 
         '^AD-COMP-003$' {
             $riskArea = 'OperatingSystem'
-            if ($Severity -eq 'High') { $weight = 42; $cap = 70; $scale = 80.0 }
-            else { $weight = 18; $cap = 45; $scale = 100.0 }
+            if ($Severity -eq 'High') { $weight = 20; $cap = 70; $scale = 80.0 }
+            else { $weight = 10; $cap = 45; $scale = 100.0 }
             break
         }
     }
@@ -459,19 +464,76 @@ function Get-FindingEffectiveRuleMetadata {
     }
 }
 
-function Get-SeverityProbabilityFactor {
+function Get-RiskAreaImpactFactor {
     param(
+        [string]$RiskArea
+    )
+
+    switch ((ConvertTo-CompatibleString $RiskArea)) {
+        'AttackPath' { return 1.00 }
+        'PrivilegedAccess' { return 0.80 }
+        'Authentication' { return 0.70 }
+        'Crypto' { return 0.65 }
+        'PasswordPolicy' { return 0.55 }
+        'OperatingSystem' { return 0.25 }
+        'AccountHygiene' { return 0.18 }
+        'ComputerHygiene' { return 0.16 }
+        default { return 0.20 }
+    }
+}
+
+function Get-RuleOccurrenceFactor {
+    param(
+        [string]$Id,
+        [int]$Count,
         [ValidateSet('Critical', 'High', 'Medium', 'Low', 'Info')]
         [string]$Severity
     )
 
-    switch ($Severity) {
-        'Critical' { return 1.15 }
-        'High' { return 0.85 }
-        'Medium' { return 0.45 }
-        'Low' { return 0.18 }
-        'Info' { return 0.03 }
-        default { return 0.03 }
+    $safeCount = [math]::Max(0, $Count)
+    if ($safeCount -le 0) {
+        return 0.0
+    }
+
+    switch -Regex ((ConvertTo-CompatibleString $Id)) {
+        '^AD-COMP-003$' {
+            if ($safeCount -ge 15) { return 1.0 }
+            if ($safeCount -ge 6) { return 0.75 }
+            return 0.50
+        }
+        '^AD-COMP-001$|^AD-COMP-002$' {
+            if ($safeCount -ge 100) { return 1.0 }
+            if ($safeCount -ge 25) { return 0.75 }
+            if ($safeCount -ge 5) { return 0.50 }
+            return 0.25
+        }
+        '^AD-USER-003$|^AD-USER-004$|^AD-USER-005$' {
+            if ($safeCount -ge 100) { return 0.60 }
+            if ($safeCount -ge 25) { return 0.45 }
+            if ($safeCount -ge 5) { return 0.25 }
+            return 0.10
+        }
+        '^AD-USER-012$' {
+            if ($safeCount -ge 20) { return 1.0 }
+            if ($safeCount -ge 5) { return 0.75 }
+            return 0.50
+        }
+        '^AD-POLICY-006$' {
+            if ($safeCount -ge 6) { return 1.0 }
+            if ($safeCount -ge 2) { return 0.75 }
+            return 0.50
+        }
+        '^AD-PRIV-006$|^AD-PRIV-007$|^AD-PRIV-008$' {
+            if ($safeCount -ge 5) { return 0.75 }
+            if ($safeCount -ge 2) { return 0.50 }
+            return 0.35
+        }
+        default {
+            if ($safeCount -eq 1) { return 1.0 }
+            if ($safeCount -ge 15) { return 1.0 }
+            if ($safeCount -ge 6) { return 0.90 }
+            return 0.75
+        }
     }
 }
 
@@ -479,6 +541,8 @@ function Get-RuleRiskContribution {
     param(
         [int]$Count,
         [int]$RuleWeight,
+        [string]$Id = '',
+        [string]$RiskArea = '',
         [ValidateSet('Critical', 'High', 'Medium', 'Low', 'Info')]
         [string]$Severity
     )
@@ -488,37 +552,28 @@ function Get-RuleRiskContribution {
             BaseProbability      = 0.0
             RiskMass             = 0.0
             Contribution         = 0.0
-            OccurrenceModel      = 'ProbabilityUnionSqrtDiminishing'
+            RawContribution      = 0.0
+            OccurrenceModel      = 'IndicatorThresholdSaturation'
+            OccurrenceFactor     = 0.0
+            AreaImpactFactor     = 0.0
             RepeatAdjustedEvents = 0.0
         }
     }
 
-    $normalizedWeight = [math]::Max(0.0, [math]::Min(1.0, ([double]$RuleWeight / 100.0)))
-    $severityFactor = Get-SeverityProbabilityFactor -Severity $Severity
-    $baseProbability = [math]::Pow($normalizedWeight, 2.0) * [double]$severityFactor
-    $baseProbability = [math]::Max(0.0, [math]::Min(0.92, $baseProbability))
-    $riskMass = 0.0
-    $repeatAdjustedEvents = 0.0
-
-    for ($i = 1; $i -le $Count; $i++) {
-        $repeatFactor = 1.0 / [math]::Sqrt([double]$i)
-        $occurrenceProbability = [math]::Max(0.0, [math]::Min(0.95, ($baseProbability * $repeatFactor)))
-        if ($occurrenceProbability -le 0) {
-            continue
-        }
-
-        $riskMass += (-1.0 * [math]::Log(1.0 - $occurrenceProbability))
-        $repeatAdjustedEvents += $repeatFactor
-    }
-
-    $contribution = 100.0 * (1.0 - [math]::Exp(-1.0 * $riskMass))
+    $occurrenceFactor = Get-RuleOccurrenceFactor -Id $Id -Count $Count -Severity $Severity
+    $areaImpactFactor = Get-RiskAreaImpactFactor -RiskArea $RiskArea
+    $rawContribution = [double]$RuleWeight * [double]$occurrenceFactor
+    $contribution = [double]$rawContribution * [double]$areaImpactFactor
 
     return [pscustomobject][ordered]@{
-        BaseProbability      = [math]::Round($baseProbability, 4)
-        RiskMass             = [math]::Round($riskMass, 4)
+        BaseProbability      = [math]::Round($occurrenceFactor, 4)
+        RiskMass             = [math]::Round($contribution, 4)
         Contribution         = [math]::Round($contribution, 2)
-        OccurrenceModel      = 'ProbabilityUnionSqrtDiminishing'
-        RepeatAdjustedEvents = [math]::Round($repeatAdjustedEvents, 2)
+        RawContribution      = [math]::Round($rawContribution, 2)
+        OccurrenceModel      = 'IndicatorThresholdSaturation'
+        OccurrenceFactor     = [math]::Round($occurrenceFactor, 2)
+        AreaImpactFactor     = [math]::Round($areaImpactFactor, 2)
+        RepeatAdjustedEvents = [math]::Round($occurrenceFactor, 2)
     }
 }
 
@@ -548,7 +603,8 @@ function Get-RiskScoreAnalysis {
     $allFindings = ConvertTo-GuiFindingArray -InputObject $Findings
     $ruleSummaries = New-Object System.Collections.Generic.List[object]
     $areaRaw = @{}
-    $totalRiskMass = 0.0
+    $totalWeightedPoints = 0.0
+    $totalRawPoints = 0.0
     $criticalCount = @($allFindings | Where-Object { $_.Severity -eq 'Critical' }).Count
     $highCount = @($allFindings | Where-Object { $_.Severity -eq 'High' }).Count
     $mediumCount = @($allFindings | Where-Object { $_.Severity -eq 'Medium' }).Count
@@ -560,14 +616,15 @@ function Get-RiskScoreAnalysis {
         $metadata = Get-FindingEffectiveRuleMetadata -Finding $sample
         $riskArea = $metadata.RiskArea
         $ruleWeight = [int]$metadata.RuleWeight
-        $ruleRisk = Get-RuleRiskContribution -Count $group.Count -RuleWeight $ruleWeight -Severity (ConvertTo-CompatibleString $sample.Severity)
+        $ruleRisk = Get-RuleRiskContribution -Count $group.Count -RuleWeight $ruleWeight -Id (ConvertTo-CompatibleString $sample.Id) -RiskArea $riskArea -Severity (ConvertTo-CompatibleString $sample.Severity)
         $contribution = [double]$ruleRisk.Contribution
 
         if (-not $areaRaw.ContainsKey($riskArea)) {
             $areaRaw[$riskArea] = 0.0
         }
-        $areaRaw[$riskArea] = [double]$areaRaw[$riskArea] + [double]$ruleRisk.RiskMass
-        $totalRiskMass += [double]$ruleRisk.RiskMass
+        $areaRaw[$riskArea] = [double]$areaRaw[$riskArea] + [double]$contribution
+        $totalWeightedPoints += [double]$contribution
+        $totalRawPoints += [double]$ruleRisk.RawContribution
 
         $ruleSummaries.Add([pscustomobject][ordered]@{
             Id                   = ConvertTo-CompatibleString $sample.Id
@@ -577,6 +634,9 @@ function Get-RiskScoreAnalysis {
             RiskAreaName         = Get-RiskAreaLabel -RiskArea $riskArea
             Count                = [int]$group.Count
             RuleWeight           = [int]$ruleWeight
+            OccurrenceFactor     = [double]$ruleRisk.OccurrenceFactor
+            AreaImpactFactor     = [double]$ruleRisk.AreaImpactFactor
+            RawContribution      = [double]$ruleRisk.RawContribution
             BaseProbability      = [double]$ruleRisk.BaseProbability
             RiskMass             = [double]$ruleRisk.RiskMass
             RepeatAdjustedEvents = [double]$ruleRisk.RepeatAdjustedEvents
@@ -589,32 +649,36 @@ function Get-RiskScoreAnalysis {
 
     foreach ($riskArea in @($areaRaw.Keys)) {
         $weight = Get-RiskAreaWeight -RiskArea $riskArea
-        $riskMass = [double]$areaRaw[$riskArea]
+        $areaPoints = [double]$areaRaw[$riskArea]
         $areaRules = @($ruleSummaries.ToArray() | Where-Object { (ConvertTo-CompatibleString $_.RiskArea) -eq (ConvertTo-CompatibleString $riskArea) })
         $dominantRuleContribution = 0.0
         if ($areaRules.Count -gt 0) {
             $dominantRuleContribution = [double](@($areaRules | Measure-Object -Property Contribution -Maximum).Maximum)
         }
-        $score = [math]::Round((100.0 * (1.0 - [math]::Exp(-1.0 * $riskMass))), 2)
+        $score = [math]::Round([math]::Min(100.0, $areaPoints), 2)
         $dominantScore = [math]::Max($dominantScore, $score)
         $areaSummaries.Add([pscustomobject][ordered]@{
             RiskArea                 = ConvertTo-CompatibleString $riskArea
             Name                     = Get-RiskAreaLabel -RiskArea $riskArea
             Score                    = [double]$score
-            RiskMass                 = [math]::Round($riskMass, 4)
+            RiskMass                 = [math]::Round($areaPoints, 4)
             DominantRuleContribution = [math]::Round($dominantRuleContribution, 2)
             Weight                   = [double]$weight
         }) | Out-Null
     }
 
-    $scoreValue = 100.0 * (1.0 - [math]::Exp(-1.0 * $totalRiskMass))
+    $scoreScale = 125.0
+    $scoreValue = 100.0 * (1.0 - [math]::Exp(-1.0 * ($totalWeightedPoints / $scoreScale)))
     $score = [int][math]::Round([math]::Min(100, $scoreValue), 0)
 
     return [pscustomobject][ordered]@{
         Score         = [int][math]::Min(100, $score)
-        Model         = 'NIST likelihood-impact probability union v7'
+        Model         = 'Indicator-weighted AD risk index v8'
         DominantScore = [math]::Round($dominantScore, 2)
-        RiskMass      = [math]::Round($totalRiskMass, 4)
+        RiskMass      = [math]::Round($totalWeightedPoints, 4)
+        RawRiskPoints = [math]::Round($totalRawPoints, 2)
+        WeightedRiskPoints = [math]::Round($totalWeightedPoints, 2)
+        ScoreScale    = [math]::Round($scoreScale, 2)
         WeightedScore = [math]::Round($scoreValue, 2)
         Counts        = [pscustomobject][ordered]@{
             Critical = $criticalCount
@@ -626,6 +690,134 @@ function Get-RiskScoreAnalysis {
         }
         AreaScores    = @($areaSummaries | Sort-Object -Property Score -Descending)
         RuleScores    = @($ruleSummaries | Sort-Object -Property Contribution -Descending)
+    }
+}
+
+function Get-RiskScoreBaselineBands {
+    return @(
+        [pscustomobject][ordered]@{
+            Key = 'Excellent'
+            Label = 'Minimalan rizik'
+            Range = '0-19'
+            Min = 0
+            Max = 19
+            Meaning = 'Najbolji raspon. Detektovani AD rizik je minimalan; uglavnom info/low hygiene nalazi, bez aktivnih visokih putanja napada.'
+            Action = 'Odrzavati kontrole, rjesavati nalaze kroz redovno odrzavanje i pratiti drift.'
+        },
+        [pscustomobject][ordered]@{
+            Key = 'Good'
+            Label = 'Nizak rizik'
+            Range = '20-39'
+            Min = 20
+            Max = 39
+            Meaning = 'Prihvatljiv raspon. Postoje slabosti, ali rizik je kontrolisan ako nema Critical/High attack-path nalaza.'
+            Action = 'Planirati remediation kroz redovni operativni backlog. Ovo je prihvatljiv baseline za lokalni Active Directory.'
+        },
+        [pscustomobject][ordered]@{
+            Key = 'Elevated'
+            Label = 'Povisen rizik'
+            Range = '40-59'
+            Min = 40
+            Max = 59
+            Meaning = 'Vidljiv security debt. Najcesce jedan jaci High nalaz, vise Medium nalaza ili vise razlicitih oblasti rizika.'
+            Action = 'Definisati remediation plan i vlasnike. Prvo zatvoriti privilegovani pristup, attack path i autentikaciju.'
+        },
+        [pscustomobject][ordered]@{
+            Key = 'High'
+            Label = 'Visok rizik'
+            Range = '60-79'
+            Min = 60
+            Max = 79
+            Meaning = 'Iznad prihvatljivog baseline-a. Vjerovatno postoje aktivni privilegovani ili attack-path problemi, ili vise jakih nezavisnih oblasti rizika.'
+            Action = 'Tretirati kao prioritetan sigurnosni rad. Kriticne/visoke i privilegovane nalaze rjesavati u danima, ne mjesecima.'
+        },
+        [pscustomobject][ordered]@{
+            Key = 'Critical'
+            Label = 'Kritican rizik'
+            Range = '80-100'
+            Min = 80
+            Max = 100
+            Meaning = 'Najgori raspon. Vrlo visok rizik domene; obicno znaci neposredne attack-path probleme, Critical nalaze ili vise High nalaza u osjetljivim oblastima.'
+            Action = 'Eskalirati kao hitan sigurnosni projekat ili incident-grade remediation, zavisno od nalaza.'
+        }
+    )
+}
+
+function Get-RiskScoreBaseline {
+    param(
+        [int]$Score,
+        [object]$RiskScoreDetails
+    )
+
+    $scoreValue = [math]::Max(0, [math]::Min(100, $Score))
+    $bands = @(Get-RiskScoreBaselineBands)
+    $band = @($bands | Where-Object { $scoreValue -ge [int]$_.Min -and $scoreValue -le [int]$_.Max } | Select-Object -First 1)[0]
+    if ($null -eq $band) {
+        $band = $bands[-1]
+    }
+
+    $targetMax = 39
+    $idealMax = 19
+    $gapToTarget = [math]::Max(0, $scoreValue - $targetMax)
+    $gapToIdeal = [math]::Max(0, $scoreValue - $idealMax)
+    $baselineComparison = if ($scoreValue -le $idealMax) {
+        'Unutar idealnog hardened baseline-a.'
+    } elseif ($scoreValue -le $targetMax) {
+        'Unutar prihvatljivog baseline-a za lokalni Active Directory.'
+    } else {
+        "$gapToTarget poena iznad prihvatljivog baseline-a za lokalni Active Directory."
+    }
+
+    $topDrivers = @()
+    $topAreas = @()
+    if ($null -ne $RiskScoreDetails) {
+        if ($RiskScoreDetails.PSObject.Properties['RuleScores']) {
+            $topDrivers = @($RiskScoreDetails.RuleScores | Sort-Object -Property Contribution -Descending | Select-Object -First 8 | ForEach-Object {
+                [pscustomobject][ordered]@{
+                    Id = ConvertTo-CompatibleString $_.Id
+                    Severity = ConvertTo-CompatibleString $_.Severity
+                    Count = [int]$_.Count
+                    Contribution = [double]$_.Contribution
+                    RuleWeight = [int]$_.RuleWeight
+                    Title = ConvertTo-CompatibleString $_.Title
+                }
+            })
+        }
+        if ($RiskScoreDetails.PSObject.Properties['AreaScores']) {
+            $topAreas = @($RiskScoreDetails.AreaScores | Sort-Object -Property Score -Descending | Select-Object -First 8 | ForEach-Object {
+                [pscustomobject][ordered]@{
+                    Name = ConvertTo-CompatibleString $_.Name
+                    Score = [double]$_.Score
+                    DominantRuleContribution = [double]$_.DominantRuleContribution
+                }
+            })
+        }
+    }
+
+    return [pscustomobject][ordered]@{
+        Score = [int]$scoreValue
+        BandKey = ConvertTo-CompatibleString $band.Key
+        BandLabel = ConvertTo-CompatibleString $band.Label
+        BandRange = ConvertTo-CompatibleString $band.Range
+        Meaning = ConvertTo-CompatibleString $band.Meaning
+        RecommendedAction = ConvertTo-CompatibleString $band.Action
+        ScaleDirection = '0 je najbolje / najnizi detektovani rizik; 100 je najgore / kritican rizik.'
+        TargetBaselineLabel = 'Prihvatljiv baseline za lokalni Active Directory (0-39)'
+        TargetScoreMax = $targetMax
+        IdealBaselineLabel = 'Idealno/hardened'
+        IdealScoreMax = $idealMax
+        GapToTarget = [int]$gapToTarget
+        GapToIdeal = [int]$gapToIdeal
+        BaselineComparison = ConvertTo-CompatibleString $baselineComparison
+        Legend = $bands
+        TopDrivers = $topDrivers
+        TopAreas = $topAreas
+        Notes = @(
+            'Ocjena rizika se cita obrnuto od ocjene kvaliteta: 0 je najbolje, 100 je najgore.',
+            'Ocjena nije procenat kompromitacije. To je 0-100 AD risk index.',
+            'Model koristi indikatore, ozbiljnost, broj zahvacenih objekata kroz pragove i AD-relevance faktor.',
+            'Cilj za uredjenu lokalnu AD domenu je ispod 40; idealno je ispod 20.'
+        )
     }
 }
 
@@ -644,18 +836,18 @@ function Get-OverallRiskScore {
     $lowCount = [math]::Max(0, $Low)
     $infoCount = [math]::Max(0, $Info)
 
-    $riskMass = 0.0
+    $weightedPoints = 0.0
     foreach ($item in @(
-            @{ Count = $criticalCount; Weight = 85; Severity = 'Critical' },
-            @{ Count = $highCount; Weight = 50; Severity = 'High' },
-            @{ Count = $mediumCount; Weight = 24; Severity = 'Medium' },
-            @{ Count = $lowCount; Weight = 6; Severity = 'Low' },
-            @{ Count = $infoCount; Weight = 0; Severity = 'Info' }
+            @{ Count = $criticalCount; Weight = 55; Severity = 'Critical'; RiskArea = 'AttackPath' },
+            @{ Count = $highCount; Weight = 30; Severity = 'High'; RiskArea = 'PrivilegedAccess' },
+            @{ Count = $mediumCount; Weight = 12; Severity = 'Medium'; RiskArea = 'PasswordPolicy' },
+            @{ Count = $lowCount; Weight = 4; Severity = 'Low'; RiskArea = 'AccountHygiene' },
+            @{ Count = $infoCount; Weight = 0; Severity = 'Info'; RiskArea = 'General' }
         )) {
-        $riskMass += [double](Get-RuleRiskContribution -Count $item.Count -RuleWeight $item.Weight -Severity $item.Severity).RiskMass
+        $weightedPoints += [double](Get-RuleRiskContribution -Count $item.Count -RuleWeight $item.Weight -Id 'GENERIC' -RiskArea $item.RiskArea -Severity $item.Severity).Contribution
     }
 
-    $score = [int][math]::Round((100.0 * (1.0 - [math]::Exp(-1.0 * $riskMass))), 0)
+    $score = [int][math]::Round((100.0 * (1.0 - [math]::Exp(-1.0 * ($weightedPoints / 125.0)))), 0)
 
     return [int]$score
 }
@@ -1467,6 +1659,29 @@ function Test-UnsupportedOperatingSystem {
     return $null
 }
 
+function Get-UnsupportedOsFindingSeverity {
+    param(
+        [object]$Computer,
+        [object]$OsRisk,
+        [bool]$IsDomainController
+    )
+
+    if ($null -eq $OsRisk) {
+        return $null
+    }
+
+    $osText = ConvertTo-CompatibleString $Computer.OperatingSystem
+    if ($IsDomainController -or $osText -like '*Server*') {
+        return (ConvertTo-CompatibleString $OsRisk.Severity)
+    }
+
+    if ((ConvertTo-CompatibleString $OsRisk.Severity) -eq 'High') {
+        return 'Medium'
+    }
+
+    return (ConvertTo-CompatibleString $OsRisk.Severity)
+}
+
 function Select-ReportFindingFields {
     param(
         [object[]]$Findings
@@ -1751,6 +1966,88 @@ function New-WarningsHtml {
     return ($rows -join [Environment]::NewLine)
 }
 
+function New-RiskBaselineHtml {
+    param(
+        [object]$Summary
+    )
+
+    if ($null -eq $Summary -or -not $Summary.PSObject.Properties['RiskBaseline'] -or $null -eq $Summary.RiskBaseline) {
+        return ''
+    }
+
+    $baseline = $Summary.RiskBaseline
+    $score = [int]$baseline.Score
+    $marker = [math]::Max(0, [math]::Min(100, $score))
+    $bandLabel = ConvertTo-HtmlText $baseline.BandLabel
+    $bandRange = ConvertTo-HtmlText $baseline.BandRange
+    $comparison = ConvertTo-HtmlText $baseline.BaselineComparison
+    $meaning = ConvertTo-HtmlText $baseline.Meaning
+    $action = ConvertTo-HtmlText $baseline.RecommendedAction
+    $scaleDirection = ConvertTo-HtmlText $baseline.ScaleDirection
+    $targetLabel = ConvertTo-HtmlText $baseline.TargetBaselineLabel
+    $idealLabel = ConvertTo-HtmlText $baseline.IdealBaselineLabel
+
+    $legendRows = New-Object System.Collections.Generic.List[string]
+    foreach ($band in @($baseline.Legend)) {
+        $range = ConvertTo-HtmlText $band.Range
+        $label = ConvertTo-HtmlText $band.Label
+        $bandMeaning = ConvertTo-HtmlText $band.Meaning
+        $bandAction = ConvertTo-HtmlText $band.Action
+        $legendRows.Add("<tr><td><strong>$range</strong></td><td>$label</td><td>$bandMeaning</td><td>$bandAction</td></tr>") | Out-Null
+    }
+
+    $driverRows = New-Object System.Collections.Generic.List[string]
+    foreach ($driver in @($baseline.TopDrivers | Select-Object -First 6)) {
+        $id = ConvertTo-HtmlText $driver.Id
+        $severity = ConvertTo-HtmlText (Get-SeverityLabel -Severity $driver.Severity)
+        $severityClass = ConvertTo-HtmlText $driver.Severity
+        $count = [int]$driver.Count
+        $weight = [int]$driver.RuleWeight
+        $contribution = ConvertTo-HtmlText ([math]::Round([double]$driver.Contribution, 2))
+        $title = ConvertTo-HtmlText $driver.Title
+        $driverRows.Add("<tr><td>$id</td><td class=`"$severityClass`">$severity</td><td>$count</td><td>$weight</td><td>$contribution</td><td>$title</td></tr>") | Out-Null
+    }
+
+    $driverTable = if ($driverRows.Count -gt 0) {
+        "<table class=`"compact-table`"><thead><tr><th>ID</th><th>Ozbiljnost</th><th>Broj</th><th>Tezina</th><th>Doprinos</th><th>Nalaz</th></tr></thead><tbody>$($driverRows -join [Environment]::NewLine)</tbody></table>"
+    }
+    else {
+        '<div class="empty-chart">Nema drivera ocjene za prikaz.</div>'
+    }
+
+    $noteRows = New-Object System.Collections.Generic.List[string]
+    foreach ($note in @($baseline.Notes)) {
+        $noteRows.Add('<li>' + (ConvertTo-HtmlText $note) + '</li>') | Out-Null
+    }
+
+    return @"
+<section class="baseline-card">
+  <h2>Kako citati ocjenu rizika</h2>
+  <div class="baseline-grid">
+    <div>
+      <div class="risk-scale">
+        <span style="left:0%">0<br />najbolje</span>
+        <span style="left:39%">39<br />baseline</span>
+        <span style="left:$marker%">$score</span>
+        <span style="left:100%">100<br />najgore</span>
+      </div>
+      <div class="scale-track"><span class="scale-marker" style="left:$marker%"></span></div>
+      <p class="baseline-headline"><strong>$score</strong> = $bandLabel ($bandRange). $comparison</p>
+      <p>$scaleDirection</p>
+    </div>
+    <div>
+      <h3>Legenda baseline-a</h3>
+      <table class="compact-table"><thead><tr><th>Ocjena</th><th>Raspon</th><th>Znacenje</th><th>Prioritet</th></tr></thead><tbody>
+      $($legendRows -join [Environment]::NewLine)
+      </tbody></table>
+    </div>
+  </div>
+  <h3>Najveci uticaj na ocjenu rizika</h3>
+  $driverTable
+</section>
+"@
+}
+
 function New-GroupedFindingsHtml {
     param(
         [object[]]$Findings
@@ -1888,11 +2185,21 @@ tr:nth-child(even) { background: #f8fafc; }
 .bar-track { height: 10px; background: #eef2f6; border-radius: 99px; overflow: hidden; }
 .bar-track span { display: block; height: 100%; background: #2563eb; border-radius: 99px; }
 .empty-chart { color: #667085; padding: 12px; background: #f8fafc; border-radius: 6px; }
+.baseline-card { border: 1px solid #d9e2ec; border-radius: 8px; padding: 16px; background: #fff; margin: 16px 0 24px 0; }
+.baseline-grid { display: grid; grid-template-columns: minmax(300px, .9fr) minmax(360px, 1.1fr); gap: 18px; align-items: start; }
+.baseline-headline { font-size: 16px; color: #102a43; }
+.risk-scale { position: relative; height: 42px; margin: 4px 8px 0 8px; color: #52606d; font-size: 11px; }
+.risk-scale span { position: absolute; transform: translateX(-50%); text-align: center; white-space: nowrap; }
+.scale-track { position: relative; height: 14px; margin: 0 8px 18px 8px; border-radius: 99px; background: linear-gradient(90deg, #16a34a 0%, #16a34a 20%, #84cc16 20%, #84cc16 40%, #f59e0b 40%, #f59e0b 60%, #f97316 60%, #f97316 80%, #dc2626 80%, #dc2626 100%); }
+.scale-marker { position: absolute; top: -5px; width: 4px; height: 24px; border-radius: 4px; background: #102a43; box-shadow: 0 0 0 2px #fff; transform: translateX(-50%); }
+.compact-table { margin: 8px 0 14px 0; font-size: 12px; }
+.compact-table th, .compact-table td { padding: 6px 8px; }
+.risk-notes { color: #52606d; padding-left: 18px; }
 details { border: 1px solid #d9e2ec; border-radius: 8px; margin: 10px 0; background: #fff; }
 summary { cursor: pointer; padding: 10px 12px; font-weight: 700; color: #102a43; background: #f8fafc; }
 summary span { color: #667085; font-weight: 600; margin-left: 6px; }
 .company-footer { position: fixed; right: 24px; bottom: 10px; color: #667085; font-size: 11px; font-weight: 600; background: rgba(255,255,255,.9); padding: 3px 0 3px 10px; }
-@media print { .chart-row { grid-template-columns: 1fr; } details { page-break-inside: avoid; } .company-footer { position: fixed; right: 18px; bottom: 8px; } }
+@media print { .chart-row, .baseline-grid { grid-template-columns: 1fr; } details, .baseline-card { page-break-inside: avoid; } .company-footer { position: fixed; right: 18px; bottom: 8px; } }
 </style>
 '@
 
@@ -1907,7 +2214,7 @@ summary span { color: #667085; font-weight: 600; margin-left: 6px; }
 Klijent: <strong>$safeClientName</strong><br />
 Domena: <strong>$safeDomain</strong><br />
 Generisano: <strong>$safeGenerated</strong><br />
-Model score-a: <strong>$safeRiskScoreModel</strong>
+Model ocjene: <strong>$safeRiskScoreModel</strong>
 </div>
 <div class="cards">
   <div class="card"><div class="label">Ocjena rizika</div><div class="value">$($Summary.RiskScore)</div></div>
@@ -1948,7 +2255,8 @@ Model score-a: <strong>$safeRiskScoreModel</strong>
             }
         }
     }
-    $riskAreaBars = New-BarListHtml -Items $riskAreaItems -EmptyText 'Nema score podataka po oblasti.'
+    $riskAreaBars = New-BarListHtml -Items $riskAreaItems -EmptyText 'Nema podataka o ocjeni po oblasti.'
+    $riskBaselineSection = New-RiskBaselineHtml -Summary $Summary
     $severityGroupedFindings = New-SeverityGroupedFindingsHtml -Findings $reportFindings
     $groupedFindings = New-GroupedFindingsHtml -Findings $reportFindings
 
@@ -1977,7 +2285,7 @@ Model score-a: <strong>$safeRiskScoreModel</strong>
 
     $warningFragment = New-WarningsHtml -Warnings $Warnings
 
-    $body = $summaryCards + $chartSection + '<h2>Nalazi - grupisano po ozbiljnosti</h2>' + $severityGroupedFindings + '<h2>Grupisano po kategoriji</h2>' + $groupedFindings + $warningFragment + '<div class="company-footer">Kodeks d.o.o. Sarajevo | Created by: Adis Hadzovic</div>'
+    $body = $summaryCards + $riskBaselineSection + $chartSection + '<h2>Nalazi - grupisano po ozbiljnosti</h2>' + $severityGroupedFindings + '<h2>Grupisano po kategoriji</h2>' + $groupedFindings + $warningFragment + '<div class="company-footer">Kodeks d.o.o. Sarajevo | Created by: Adis Hadzovic</div>'
     $safeTitle = ConvertTo-HtmlText "AD sigurnosni izvjestaj rizika - $($Summary.ClientName)"
     $html = @"
 <!doctype html>
@@ -2413,7 +2721,8 @@ function Set-SummaryCardValue {
 function Update-GuiSummary {
     param(
         [object]$Summary,
-        [hashtable]$Cards
+        [hashtable]$Cards,
+        [System.Windows.Forms.Label]$BaselineLabel = $null
     )
 
     Set-SummaryCardValue -Cards $Cards -Key 'Risk' -Value $Summary.RiskScore
@@ -2426,6 +2735,15 @@ function Update-GuiSummary {
     Set-SummaryCardValue -Cards $Cards -Key 'Users' -Value $Summary.Users
     Set-SummaryCardValue -Cards $Cards -Key 'Computers' -Value $Summary.Computers
     Set-SummaryCardValue -Cards $Cards -Key 'DCs' -Value $Summary.DomainControllers
+
+    if ($null -ne $BaselineLabel) {
+        if ($Summary.PSObject.Properties['RiskBaseline'] -and $null -ne $Summary.RiskBaseline) {
+            $BaselineLabel.Text = "Ocjena rizika: $($Summary.RiskScore) - $($Summary.RiskBaseline.BandLabel). $($Summary.RiskBaseline.BaselineComparison) 0 je najbolje, 100 je najgore."
+        }
+        else {
+            $BaselineLabel.Text = 'Ocjena rizika: 0 je najbolje, 100 je najgore.'
+        }
+    }
 }
 
 function Update-GuiFindingsGrid {
@@ -2781,6 +3099,16 @@ function Show-ADSecurityRiskAnalyzerGui {
         $cards[$def.Key] = $valueLabel
     }
 
+    $riskBaselineLabel = New-Object System.Windows.Forms.Label
+    $riskBaselineLabel.Text = 'Ocjena rizika: 0 je najbolje, 100 je najgore.'
+    $riskBaselineLabel.Font = New-Object System.Drawing.Font('Segoe UI', 8)
+    $riskBaselineLabel.ForeColor = $script:GuiColors.Muted
+    $riskBaselineLabel.TextAlign = 'MiddleLeft'
+    $riskBaselineLabel.Location = New-Object System.Drawing.Point(12, 112)
+    $riskBaselineLabel.Size = New-Object System.Drawing.Size(830, 18)
+    $riskBaselineLabel.Anchor = 'Left,Right,Bottom'
+    $summaryGroup.Controls.Add($riskBaselineLabel)
+
     $btnSaveHtml = New-Object System.Windows.Forms.Button
     $btnSaveHtml.Text = 'Sacuvaj HTML'
     $btnSaveHtml.Enabled = $false
@@ -3050,7 +3378,7 @@ $($finding.Recommendation)
         $script:GuiState.Warnings = @($result.Warnings)
         $script:GuiState.ReportPath = $result.ReportPath
 
-        Update-GuiSummary -Summary $result.Summary -Cards $cards
+        Update-GuiSummary -Summary $result.Summary -Cards $cards -BaselineLabel $riskBaselineLabel
         Update-GuiFindingsGrid -Grid $grid -DetailBox $detailBox -Findings $script:GuiState.Findings -Mode 'All' -Value ''
         Update-GuiFilterTree -Tree $tree -Findings $script:GuiState.Findings
 
@@ -3471,6 +3799,7 @@ public static class ADRiskWindowStyle {
               <Border Background="#0B1220" CornerRadius="12" Padding="10" Margin="4"><StackPanel><TextBlock x:Name="PcsValue" Text="-" FontSize="22" FontWeight="SemiBold"/><TextBlock Text="PCs" Foreground="{StaticResource Muted}"/></StackPanel></Border>
               <Border Background="#0B1220" CornerRadius="12" Padding="10" Margin="4"><StackPanel><TextBlock x:Name="DcsValue" Text="-" FontSize="22" FontWeight="SemiBold"/><TextBlock Text="DCs" Foreground="{StaticResource Muted}"/></StackPanel></Border>
             </UniformGrid>
+            <TextBlock x:Name="RiskBaselineText" Text="Ocjena rizika: 0 je najbolje, 100 je najgore." Foreground="{StaticResource Muted}" FontSize="12" Margin="6,8,6,0" TextWrapping="Wrap"/>
           </StackPanel>
         </Border>
 
@@ -3570,6 +3899,7 @@ public static class ADRiskWindowStyle {
     $findingsGrid = Get-WpfControl 'FindingsGrid'
     $detailText = Get-WpfControl 'DetailText'
     $logText = Get-WpfControl 'LogText'
+    $riskBaselineText = Get-WpfControl 'RiskBaselineText'
 
     $valueControls = @{
         Risk = Get-WpfControl 'RiskValue'
@@ -3659,6 +3989,14 @@ public static class ADRiskWindowStyle {
         $valueControls.Users.Text = [string]$Summary.Users
         $valueControls.Computers.Text = [string]$Summary.Computers
         $valueControls.DCs.Text = [string]$Summary.DomainControllers
+        if ($null -ne $riskBaselineText) {
+            if ($Summary.PSObject.Properties['RiskBaseline'] -and $null -ne $Summary.RiskBaseline) {
+                $riskBaselineText.Text = "Ocjena rizika: $($Summary.RiskScore) - $($Summary.RiskBaseline.BandLabel). $($Summary.RiskBaseline.BaselineComparison) 0 je najbolje, 100 je najgore."
+            }
+            else {
+                $riskBaselineText.Text = 'Ocjena rizika: 0 je najbolje, 100 je najgore.'
+            }
+        }
     }
 
     function Set-WpfFindings {
@@ -4380,15 +4718,18 @@ foreach ($user in $privilegedUsers) {
     $isCorePrivileged = @($privilegedCategories | Where-Object { $_ -in @('CorePrivileged', 'BuiltInPrivileged') }).Count -gt 0
 
     if ($null -eq $lastLogonDays -or $lastLogonDays -gt $PrivilegedStaleDays) {
-        $privilegedStaleSeverity = if ($isCorePrivileged) { 'High' } else { 'Medium' }
+        $privilegedPasswordVeryOld = ($null -eq $privPasswordAgeDays -or $privPasswordAgeDays -gt 730)
+        $privilegedStaleSeverity = if ($isCorePrivileged -and $privilegedPasswordVeryOld) { 'High' } else { 'Medium' }
         Add-Finding -Id 'AD-PRIV-005' -Severity $privilegedStaleSeverity -Category 'Privilegovani pristup' -Title 'Privilegovani nalog je zastario ili nema skorasnji logon' -AffectedObject $principalName -ObjectType 'Korisnik' -Evidence @{
             Enabled = $user.Enabled
             LastLogonDate = $user.LastLogonDate
             DaysSinceLastLogon = $lastLogonDays
+            PasswordLastSet = $user.PasswordLastSet
+            PasswordAgeDays = $privPasswordAgeDays
             BaselineDays = $PrivilegedStaleDays
             PrivilegedGroups = $privilegedGroups
             PrivilegedCategories = $privilegedCategories
-            SeverityReason = if ($privilegedStaleSeverity -eq 'High') { 'Nalog je omogucen i ima Tier-0/core privilegije.' } else { 'Nalog je omogucen i privilegovan, ali nije u najvisim core admin grupama.' }
+            SeverityReason = if ($privilegedStaleSeverity -eq 'High') { 'Nalog je omogucen, ima Tier-0/core privilegije i lozinka je vrlo stara ili datum nije citljiv.' } else { 'Nalog je omogucen i privilegovan, ali sam izostanak skorog logona nije dovoljan za High ako nema dodatnog password-risk signala.' }
         } -Recommendation 'Ukloniti privilegovana prava ili onemoguciti nalog ako vise nije potreban, nakon potvrde vlasnistva i poslovne potrebe.'
     }
 
@@ -4612,11 +4953,13 @@ foreach ($computer in $computers) {
 
     $osRisk = Test-UnsupportedOperatingSystem -OperatingSystem $computer.OperatingSystem
     if ($computer.Enabled -and $null -ne $osRisk) {
-        Add-Finding -Id 'AD-COMP-003' -Severity $osRisk.Severity -Category 'Operativni sistem' -Title 'Detektovan nepodrzan ili zastario Windows operativni sistem' -AffectedObject $computerName -ObjectType 'Racunar' -Evidence @{
+        $osFindingSeverity = Get-UnsupportedOsFindingSeverity -Computer $computer -OsRisk $osRisk -IsDomainController $isDomainController
+        Add-Finding -Id 'AD-COMP-003' -Severity $osFindingSeverity -Category 'Operativni sistem' -Title 'Detektovan nepodrzan ili zastario Windows operativni sistem' -AffectedObject $computerName -ObjectType 'Racunar' -Evidence @{
             Enabled = $computer.Enabled
             OperatingSystem = $computer.OperatingSystem
             OperatingSystemVersion = $computer.OperatingSystemVersion
             MatchedPattern = $osRisk.Match
+            SeverityReason = if ($osFindingSeverity -eq 'High') { 'Nepodrzan server ili domain controller OS ima veci AD uticaj.' } else { 'Nepodrzan workstation OS je ozbiljan endpoint hygiene problem, ali ne nosi isti AD takeover rizik kao server/DC ili privilegovani attack path.' }
         } -Recommendation 'Planirati upgrade, zamjenu, izolaciju ili dokumentovanu produzenu podrsku. Prioritet dati serverima i privilegovanim radnim stanicama.'
     }
 
@@ -4730,6 +5073,7 @@ $infoCount = @($script:Findings | Where-Object { $_.Severity -eq 'Info' }).Count
 
 $riskScoreAnalysis = Get-RiskScoreAnalysis -Findings $script:Findings
 $riskScore = [int]$riskScoreAnalysis.Score
+$riskBaseline = Get-RiskScoreBaseline -Score $riskScore -RiskScoreDetails $riskScoreAnalysis
 
 $summary = [pscustomobject][ordered]@{
     ClientName                  = $ClientName
@@ -4740,6 +5084,7 @@ $summary = [pscustomobject][ordered]@{
     RiskScore                   = $riskScore
     RiskScoreModel              = $riskScoreAnalysis.Model
     RiskScoreDetails            = $riskScoreAnalysis
+    RiskBaseline                = $riskBaseline
     Critical                    = $criticalCount
     High                        = $highCount
     Medium                      = $mediumCount
