@@ -5411,6 +5411,34 @@ function Test-HealthTextIndicatesPermissionIssue {
     return $Text -match '(?i)access(?:\s+is)?\s+denied|unauthorized|insufficient\s+(?:access|privilege)|logon\s+failure|does not have.*privilege|error\s+(?:code\s*)?5\b'
 }
 
+function Get-DcdiagFailedTestNames {
+    param(
+        [AllowNull()]
+        [string]$Text
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        return @()
+    }
+
+    return @([regex]::Matches($Text, '(?im)\bfailed\s+test\s+([A-Za-z][A-Za-z0-9_-]*)\b') |
+        ForEach-Object { $_.Groups[1].Value } |
+        Sort-Object -Unique)
+}
+
+function Test-DcdiagTextHasExplicitFailure {
+    param(
+        [AllowNull()]
+        [string]$Text
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        return $false
+    }
+
+    return $Text -match '(?im)\bfailed\s+test\b|\ban error event occurred\b|LDAP bind failed|DsBindWithSpnEx.*failed|The replication generated an error|failed with error|fatal error|could not be located|cannot be contacted'
+}
+
 function Get-DcdiagQuietResultStatus {
     param(
         [object]$Result
@@ -5421,9 +5449,26 @@ function Get-DcdiagQuietResultStatus {
     }
 
     $text = (ConvertTo-HealthString ($Result.StdOut + [Environment]::NewLine + $Result.StdErr)).Trim()
-    if ($Result.TimedOut -or [int]$Result.ExitCode -ne 0 -or -not [string]::IsNullOrWhiteSpace($text)) {
+    if ($Result.TimedOut -or [int]$Result.ExitCode -ne 0) {
         return 'Fail'
     }
+
+    if ([string]::IsNullOrWhiteSpace($text)) {
+        return 'Pass'
+    }
+
+    # CheckSecurityError emits this success message even with /q on some Windows Server versions.
+    if ($text -match '(?i)No security related replication errors were found on this\s+DC' -and
+        -not (Test-DcdiagTextHasExplicitFailure -Text $text)) {
+        return 'Pass'
+    }
+
+    # Other /q output is retained as a failure unless the caller applies a narrower
+    # classification, such as a SystemLog-only operational warning.
+    if (-not [string]::IsNullOrWhiteSpace($text)) {
+        return 'Fail'
+    }
+
     return 'Pass'
 }
 
@@ -5787,7 +5832,7 @@ function Write-HealthHtmlReport {
     Klijent: <strong>$safeClient</strong><br />
     Domena: <strong>$safeDomain</strong><br />
     Generisano: <strong>$safeGenerated</strong><br />
-    Model: <strong>Protocol-aware AD Health model v2</strong>
+    Model: <strong>Protocol-aware AD Health model v3</strong>
   </div>
   <div class="cards">
     <div class="card"><div class="label">Health score</div><div class="value">$($Summary.HealthScoreDisplay)</div></div>
@@ -6379,21 +6424,42 @@ foreach ($dcName in $dcNames) {
     $dcReachability[$dcName] = $portResults
 
     foreach ($portDefinition in @(
-            @{ Port = 53; Name = 'DNS TCP' },
-            @{ Port = 88; Name = 'Kerberos KDC TCP' },
-            @{ Port = 135; Name = 'RPC endpoint mapper' },
-            @{ Port = 389; Name = 'LDAP TCP' },
-            @{ Port = 445; Name = 'SMB TCP' },
-            @{ Port = 464; Name = 'Kerberos password change TCP' },
-            @{ Port = 9389; Name = 'Active Directory Web Services TCP' }
+            @{ Port = 53; Name = 'DNS TCP'; OptionalManagement = $false },
+            @{ Port = 88; Name = 'Kerberos KDC TCP'; OptionalManagement = $false },
+            @{ Port = 135; Name = 'RPC endpoint mapper'; OptionalManagement = $false },
+            @{ Port = 389; Name = 'LDAP TCP'; OptionalManagement = $false },
+            @{ Port = 445; Name = 'SMB TCP'; OptionalManagement = $false },
+            @{ Port = 464; Name = 'Kerberos password change TCP'; OptionalManagement = $false },
+            @{ Port = 9389; Name = 'Active Directory Web Services TCP'; OptionalManagement = $true }
         )) {
         $portOpen = [bool]$portResults["TCP$($portDefinition.Port)"]
+        $portStatus = if ($portOpen) {
+            'Pass'
+        }
+        elseif ([bool]$portDefinition.OptionalManagement) {
+            'NotApplicable'
+        }
+        else {
+            'Warning'
+        }
+        $portNote = if ([bool]$portDefinition.OptionalManagement) {
+            'ADWS je opcionalni management endpoint. Nedostupan TCP 9389 ne znaci da LDAP, Kerberos ili AD replikacija ne rade.'
+        }
+        else {
+            'Otvoren port ne dokazuje da AD protokol radi ispravno.'
+        }
+        $portRecommendation = if ([bool]$portDefinition.OptionalManagement) {
+            'TCP 9389 je potreban za ADWS-bazirane management alate. Omoguciti ga samo ako je taj management pristup potreban; nije preduslov za core AD autentikaciju ili replikaciju.'
+        }
+        else {
+            "Provjeriti servis, lokalni firewall, mrezni ACL i routing za TCP $($portDefinition.Port). Ova provjera ne zamjenjuje LDAP, Kerberos ili DCDiag test."
+        }
         Add-HealthCheck -Id "HC-PORT-$($portDefinition.Port)" -Category 'AD osnovne usluge' `
-            -Title "$($portDefinition.Name) transport je dostupan na portu $($portDefinition.Port)" `
-            -Status $(if ($portOpen) { 'Pass' } else { 'Warning' }) -Target $dcName -ObjectType 'Domain controller' `
-            -Evidence @{ Port = $portDefinition.Port; Reachable = $portOpen; Note = 'Otvoren port ne dokazuje da AD protokol radi ispravno.' } -Weight 0 `
+            -Title "$($portDefinition.Name) dostupnost na portu $($portDefinition.Port)" `
+            -Status $portStatus -Target $dcName -ObjectType 'Domain controller' `
+            -Evidence @{ Port = $portDefinition.Port; Reachable = $portOpen; OptionalManagementEndpoint = [bool]$portDefinition.OptionalManagement; Note = $portNote } -Weight 0 `
             -Source 'TCP transport dijagnostika' `
-            -Recommendation "Provjeriti servis, lokalni firewall, mrezni ACL i routing za TCP $($portDefinition.Port). Ova provjera ne zamjenjuje LDAP, Kerberos ili DCDiag test."
+            -Recommendation $portRecommendation
     }
 
     $ldapResult = Test-HealthLdapDirectoryService -ComputerName $dcName -AuthenticationType Negotiate -Credential $Credential
@@ -6588,71 +6654,9 @@ if ($dcNames.Count -le 1) {
         -Evidence @{ DomainControllerCount = $dcNames.Count } `
         -Recommendation 'Planirati najmanje dva ispravna domain controllera po domeni.'
 }
-elseif ($adModuleAvailable -and $null -ne (Get-Command Get-ADReplicationPartnerMetadata -ErrorAction SilentlyContinue)) {
-    try {
-        $replicationParams = @{
-            Target = $domainDns
-            Scope = 'Domain'
-            Partition = '*'
-            ErrorAction = 'Stop'
-        }
-        if ($null -ne $Credential) {
-            $replicationParams.Credential = $Credential
-        }
-        $replicationMetadata = @(Get-ADReplicationPartnerMetadata @replicationParams)
-
-        $failureParams = @{
-            Target = $domainDns
-            Scope = 'Domain'
-            ErrorAction = 'Stop'
-        }
-        if ($null -ne $Credential) {
-            $failureParams.Credential = $Credential
-        }
-        $replicationFailures = @(Get-ADReplicationFailure @failureParams)
-
-        $now = Get-Date
-        $problemPartners = @($replicationMetadata | Where-Object { [int64]$_.LastReplicationResult -ne 0 })
-        $missingLastSuccess = @($replicationMetadata | Where-Object { $null -eq $_.LastReplicationSuccess })
-        $ages = @($replicationMetadata | ForEach-Object {
-            if ($null -ne $_.LastReplicationSuccess) {
-                [math]::Round(($now - [datetime]$_.LastReplicationSuccess).TotalHours, 2)
-            }
-        })
-        $maxAgeHours = if ($ages.Count -gt 0) { [double](@($ages | Measure-Object -Maximum).Maximum) } else { 0.0 }
-        $replicationStatus = if ($replicationMetadata.Count -eq 0 -or $problemPartners.Count -gt 0 -or $replicationFailures.Count -gt 0 -or $missingLastSuccess.Count -gt 0 -or $maxAgeHours -ge $ReplicationFailureHours) {
-            'Fail'
-        }
-        elseif ($maxAgeHours -ge $ReplicationWarningHours) {
-            'Warning'
-        }
-        else {
-            'Pass'
-        }
-
-        Add-HealthCheck -Id 'HC-REPL-001' -Category 'Replikacija' -Title 'AD replikacijski partneri nemaju greske ili veliko kasnjenje' `
-            -Status $replicationStatus -Target $domainDns -ObjectType 'Domena' -Weight 20 -CriticalOnFail -RequiredForScore `
-            -Evidence @{
-                PartnerRecords = $replicationMetadata.Count
-                CurrentFailures = $replicationFailures.Count
-                NonZeroResults = $problemPartners.Count
-                MissingLastSuccess = $missingLastSuccess.Count
-                MaxLastSuccessAgeHours = $maxAgeHours
-                WarningHours = $ReplicationWarningHours
-                FailureHours = $ReplicationFailureHours
-                ProblemPartners = @($problemPartners | Select-Object -First 20 Server, Partner, Partition, LastReplicationResult, LastReplicationAttempt, LastReplicationSuccess)
-            } `
-            -Source 'Get-ADReplicationPartnerMetadata / Get-ADReplicationFailure' `
-            -Recommendation 'Otkloniti DNS, RPC, autentikacijske, site-link ili lingering-object uzroke. Potvrditi oporavak sa repadmin /showrepl i ponovnim health testom.'
-    }
-    catch {
-        Add-HealthCheck -Id 'HC-REPL-001' -Category 'Replikacija' -Title 'AD replikacijski partneri nemaju greske ili veliko kasnjenje' `
-            -Status 'NotAssessed' -Target $domainDns -ObjectType 'Domena' -Weight 20 -RequiredForScore `
-            -Evidence @{ Error = $_.Exception.Message } `
-            -Recommendation 'Pokrenuti sa nalogom koji moze citati replication metadata ili koristiti management host sa AD DS RSAT alatima.'
-    }
-}
 else {
+    $repadminStatus = $null
+    $repadminEvidence = $null
     $repadminPath = Get-HealthCommandPath -Name 'repadmin.exe'
     if ($null -ne $repadminPath) {
         $repadminResult = Invoke-HealthNativeCommand -FilePath $repadminPath -Arguments @('/replsummary') -TimeoutSeconds $NativeCommandTimeoutSeconds
@@ -6667,18 +6671,131 @@ else {
         else {
             'Pass'
         }
-        Add-HealthCheck -Id 'HC-REPL-001' -Category 'Replikacija' -Title 'Repadmin replication summary nema prijavljene greske' `
-            -Status $replicationStatus -Target $domainDns -ObjectType 'Domena' -Weight 20 -CriticalOnFail -RequiredForScore `
-            -Evidence @{ ExitCode = $repadminResult.ExitCode; TimedOut = $repadminResult.TimedOut; FailureRowsDetected = $repadminHasFailures; Output = $repadminResult.StdOut; Error = $repadminResult.StdErr } `
-            -Source 'repadmin /replsummary' `
-            -Recommendation 'Pregledati repadmin /showrepl izlaz za svaki DC i otkloniti replication error kodove.'
+        $repadminStatus = $replicationStatus
+        $repadminEvidence = [ordered]@{
+            Executable = $repadminPath
+            ExitCode = $repadminResult.ExitCode
+            TimedOut = $repadminResult.TimedOut
+            FailureRowsDetected = $repadminHasFailures
+            Output = $repadminResult.StdOut
+            Error = $repadminResult.StdErr
+        }
     }
     else {
-        Add-HealthCheck -Id 'HC-REPL-001' -Category 'Replikacija' -Title 'AD replikacija izmedju domain controllera' `
-            -Status 'NotAssessed' -Target $domainDns -ObjectType 'Domena' -Weight 20 -RequiredForScore `
-            -Evidence @{ Reason = 'AD replication cmdleti i repadmin nisu dostupni.' } `
-            -Recommendation 'Instalirati AD DS RSAT alate na management sistem sa kojeg se pokrece health test.'
+        $repadminEvidence = [ordered]@{ Reason = 'repadmin.exe nije dostupan.' }
     }
+
+    $adReplicationStatus = $null
+    $adReplicationEvidence = $null
+    $adReplicationError = ''
+    $adwsUnavailableDcs = @($dcNames | Where-Object { -not [bool]$dcReachability[$_]['TCP9389'] })
+    $adReplicationCommandsAvailable = $adModuleAvailable -and
+        $null -ne (Get-Command Get-ADReplicationPartnerMetadata -ErrorAction SilentlyContinue) -and
+        $null -ne (Get-Command Get-ADReplicationFailure -ErrorAction SilentlyContinue)
+    $collectAdReplicationTelemetry = $adReplicationCommandsAvailable -and $adwsUnavailableDcs.Count -eq 0
+
+    if ($collectAdReplicationTelemetry) {
+        try {
+            $replicationParams = @{
+                Target = $domainDns
+                Scope = 'Domain'
+                Partition = '*'
+                ErrorAction = 'Stop'
+            }
+            if ($null -ne $Credential) {
+                $replicationParams.Credential = $Credential
+            }
+            $replicationMetadata = @(Get-ADReplicationPartnerMetadata @replicationParams)
+
+            $failureParams = @{
+                Target = $domainDns
+                Scope = 'Domain'
+                ErrorAction = 'Stop'
+            }
+            if ($null -ne $Credential) {
+                $failureParams.Credential = $Credential
+            }
+            $replicationFailures = @(Get-ADReplicationFailure @failureParams)
+
+            $now = Get-Date
+            $problemPartners = @($replicationMetadata | Where-Object { [int64]$_.LastReplicationResult -ne 0 })
+            $missingLastSuccess = @($replicationMetadata | Where-Object { $null -eq $_.LastReplicationSuccess })
+            $ages = @($replicationMetadata | ForEach-Object {
+                if ($null -ne $_.LastReplicationSuccess) {
+                    [math]::Round(($now - [datetime]$_.LastReplicationSuccess).TotalHours, 2)
+                }
+            })
+            $maxAgeHours = if ($ages.Count -gt 0) { [double](@($ages | Measure-Object -Maximum).Maximum) } else { 0.0 }
+            $adReplicationStatus = if ($replicationMetadata.Count -eq 0 -or $problemPartners.Count -gt 0 -or $replicationFailures.Count -gt 0 -or $missingLastSuccess.Count -gt 0 -or $maxAgeHours -ge $ReplicationFailureHours) {
+                'Fail'
+            }
+            elseif ($maxAgeHours -ge $ReplicationWarningHours) {
+                'Warning'
+            }
+            else {
+                'Pass'
+            }
+            $adReplicationEvidence = [ordered]@{
+                PartnerRecords = $replicationMetadata.Count
+                CurrentFailures = $replicationFailures.Count
+                NonZeroResults = $problemPartners.Count
+                MissingLastSuccess = $missingLastSuccess.Count
+                MaxLastSuccessAgeHours = $maxAgeHours
+                WarningHours = $ReplicationWarningHours
+                FailureHours = $ReplicationFailureHours
+                ProblemPartners = @($problemPartners | Select-Object -First 20 Server, Partner, Partition, LastReplicationResult, LastReplicationAttempt, LastReplicationSuccess)
+            }
+        }
+        catch {
+            $adReplicationError = $_.Exception.Message
+        }
+    }
+    elseif (-not $adReplicationCommandsAvailable) {
+        $adReplicationError = 'AD replication PowerShell cmdleti nisu dostupni.'
+    }
+    else {
+        $adReplicationError = "Dopunska AD PowerShell telemetry je preskocena jer ADWS nije dostupan na: $($adwsUnavailableDcs -join ', '). Repadmin rezultat ne zavisi od ADWS-a."
+    }
+
+    $replicationStatus = 'NotAssessed'
+    $replicationSource = 'Nije dostupna pouzdana metoda'
+    if ($null -ne $repadminStatus) {
+        $replicationSource = 'repadmin /replsummary'
+        if ($repadminStatus -eq 'Fail') {
+            $replicationStatus = 'Fail'
+        }
+        elseif ($repadminStatus -eq 'Pass') {
+            if ($adReplicationStatus -eq 'Fail' -or $adReplicationStatus -eq 'Warning') {
+                $replicationStatus = 'Warning'
+                $replicationSource = 'repadmin /replsummary + AD PowerShell telemetry'
+            }
+            else {
+                $replicationStatus = 'Pass'
+            }
+        }
+        elseif ($null -ne $adReplicationStatus) {
+            $replicationStatus = $adReplicationStatus
+            $replicationSource = 'AD PowerShell replication telemetry'
+        }
+    }
+    elseif ($null -ne $adReplicationStatus) {
+        $replicationStatus = $adReplicationStatus
+        $replicationSource = 'AD PowerShell replication telemetry'
+    }
+
+    Add-HealthCheck -Id 'HC-REPL-001' -Category 'Replikacija' -Title 'AD replikacija prolazi bez prijavljenih gresaka' `
+        -Status $replicationStatus -Target $domainDns -ObjectType 'Domena' -Weight 20 -CriticalOnFail -RequiredForScore `
+        -Evidence @{
+            SelectedSource = $replicationSource
+            RepadminStatus = $repadminStatus
+            Repadmin = $repadminEvidence
+            AdPowerShellStatus = $adReplicationStatus
+            AdPowerShell = $adReplicationEvidence
+            AdPowerShellError = $adReplicationError
+            AdwsUnavailableDomainControllers = $adwsUnavailableDcs
+        } `
+        -Source $replicationSource `
+        -Recommendation 'Repadmin je primarni dokaz za samu replikaciju. Nedostupan ADWS (TCP 9389) utice na AD PowerShell management telemetry, ali sam po sebi ne dokazuje kvar replikacije. Za stvarnu gresku pregledati repadmin /showrepl i otkloniti DNS, RPC, autentikacijski ili topology uzrok.'
 }
 
 $gpoStatus = 'NotAssessed'
@@ -6896,7 +7013,7 @@ if ($adModuleAvailable -and $null -ne (Get-Command Get-ADReplicationSite -ErrorA
         Add-HealthCheck -Id 'HC-CONFIG-003' -Category 'AD konfiguracija' -Title 'AD Sites/Subnets konfiguracija pokriva domain controllere' `
             -Status $siteStatus -Target $domainDns -ObjectType 'AD topology' -Weight 4 `
             -Evidence @{ Sites = @($sites | Select-Object -ExpandProperty Name); Subnets = $subnetNames; SubnetCount = $subnets.Count; DomainControllerSites = $dcSites; UnmappedDomainControllerAddresses = $unmappedDcAddresses } `
-            -Recommendation 'Definisati mrezne subnete i mapirati ih na odgovarajuce AD site-ove. Provjeriti site linkove i raspored replikacije.'
+            -Recommendation 'Definisati stvarne mrezne CIDR subnete i mapirati ih na odgovarajuce AD site-ove. Ovo je potrebno i kada svi DC-evi pripadaju jednom site-u, jer DC Locator koristi IP subnet klijenta za izbor site-a i DC-a.'
     }
     catch {
         Add-HealthCheck -Id 'HC-CONFIG-003' -Category 'AD konfiguracija' -Title 'AD Sites/Subnets konfiguracija pokriva domain controllere' `
@@ -6923,11 +7040,39 @@ else {
     foreach ($dcName in $dcNames) {
         $diagResult = Invoke-HealthNativeCommand -FilePath $dcdiagPath -Arguments @("/s:$dcName", '/q') -TimeoutSeconds $NativeCommandTimeoutSeconds
         $diagStatus = Get-DcdiagQuietResultStatus -Result $diagResult
-        Add-HealthCheck -Id 'HC-DCDIAG-001' -Category 'DCDiag' -Title 'DCDiag default core testovi prolaze bez greske' `
+        $diagText = $diagResult.StdOut + [Environment]::NewLine + $diagResult.StdErr
+        $diagFailedTests = @(Get-DcdiagFailedTestNames -Text $diagText)
+        $diagSystemLogOnly = $diagStatus -eq 'Fail' -and
+            $diagFailedTests.Count -gt 0 -and
+            @($diagFailedTests | Where-Object { $_ -notmatch '^(?i:SystemLog)$' }).Count -eq 0
+        $diagAdRelatedSystemLog = $diagSystemLogOnly -and
+            $diagText -match '(?i)\bNTDS\b|\bNetlogon\b|\bKDC\b|\bKerberos\b|\bDFSR\b|DFS Replication|Directory Service|ActiveDirectory_DomainService|DNS Server|\bLSASRV\b|\bW32Time\b|\bSYSVOL\b'
+        if ($diagSystemLogOnly) {
+            $diagStatus = 'Warning'
+        }
+        $diagWeight = if (-not $diagSystemLogOnly) {
+            10
+        }
+        elseif ($diagAdRelatedSystemLog) {
+            4
+        }
+        else {
+            0
+        }
+        $diagRecommendation = if ($diagSystemLogOnly -and -not $diagAdRelatedSystemLog) {
+            'DCDiag core AD testovi nisu prijavili pad. SystemLog je pronasao dogadjaj druge server role; prikazan je kao operativno upozorenje, ali ne ulazi u AD Health score. Pregledati dogadjaj u servisu koji ga je generisao.'
+        }
+        elseif ($diagSystemLogOnly) {
+            'DCDiag core AD testovi nisu prijavili pad, ali SystemLog test je pronasao nedavni server event. Pregledati event kao operativno ili sigurnosno upozorenje i potvrditi da nije uzrokovan AD DS servisom.'
+        }
+        else {
+            'Pregledati prikazani DCDiag output i zatim pokrenuti dcdiag /s:<DC> /v za puni kontekst. Ne tretirati otvorene portove kao zamjenu za ove testove.'
+        }
+        Add-HealthCheck -Id 'HC-DCDIAG-001' -Category 'DCDiag' -Title 'DCDiag default testovi i System log provjera' `
             -Status $diagStatus -Target $dcName -ObjectType 'Domain controller' `
-            -Weight 10 -CriticalOnFail -RequiredForScore -Evidence @{ Executable = $dcdiagPath; ExitCode = $diagResult.ExitCode; TimedOut = $diagResult.TimedOut; Output = $diagResult.StdOut; Error = $diagResult.StdErr } `
+            -Weight $diagWeight -CriticalOnFail -RequiredForScore -Evidence @{ Executable = $dcdiagPath; ExitCode = $diagResult.ExitCode; TimedOut = $diagResult.TimedOut; FailedTests = $diagFailedTests; SystemLogOnly = $diagSystemLogOnly; AdRelatedSystemLog = $diagAdRelatedSystemLog; ScoreWeight = $diagWeight; Output = $diagResult.StdOut; Error = $diagResult.StdErr } `
             -Source 'dcdiag /q' `
-            -Recommendation 'Pregledati prikazani DCDiag output i zatim pokrenuti dcdiag /s:<DC> /v za puni kontekst. Ne tretirati otvorene portove kao zamjenu za ove testove.'
+            -Recommendation $diagRecommendation
 
         $securityDiagResult = Invoke-HealthNativeCommand -FilePath $dcdiagPath -Arguments @("/s:$dcName", '/test:CheckSecurityError', '/q') -TimeoutSeconds $NativeCommandTimeoutSeconds
         $securityDiagStatus = Get-DcdiagQuietResultStatus -Result $securityDiagResult
@@ -6962,7 +7107,7 @@ $summary = [pscustomobject][ordered]@{
     DomainDnsRoot = $domainDns
     Forest = if ($null -ne $forest) { ConvertTo-HealthString $forest.Name } else { '' }
     GeneratedAt = (Get-Date).ToString('s')
-    Model = 'Protocol-aware AD Health model v2'
+    Model = 'Protocol-aware AD Health model v3'
     HealthScore = $healthAnalysis.Score
     HealthScoreDisplay = $healthAnalysis.ScoreDisplay
     HealthScoreAvailable = [bool]$healthAnalysis.ScoreAvailable
