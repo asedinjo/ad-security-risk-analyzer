@@ -3178,7 +3178,8 @@ function Update-GuiSummary {
 
     $isHealth = $Summary.PSObject.Properties['AssessmentType'] -and $Summary.AssessmentType -eq 'Health'
     if ($isHealth) {
-        Set-SummaryCardValue -Cards $Cards -Key 'Risk' -Value $Summary.HealthScore
+        $healthScoreDisplay = if ($Summary.PSObject.Properties['HealthScoreDisplay']) { $Summary.HealthScoreDisplay } elseif ($null -eq $Summary.HealthScore) { 'N/A' } else { [string]$Summary.HealthScore }
+        Set-SummaryCardValue -Cards $Cards -Key 'Risk' -Value $healthScoreDisplay
         Set-SummaryCardValue -Cards $Cards -Key 'Total' -Value $Summary.TotalChecks
         Set-SummaryCardValue -Cards $Cards -Key 'Critical' -Value $Summary.Failed
         Set-SummaryCardValue -Cards $Cards -Key 'High' -Value $Summary.Warnings
@@ -3197,7 +3198,7 @@ function Update-GuiSummary {
             if ($CardLabels.ContainsKey($key)) { $CardLabels[$key].Text = $healthLabels[$key] }
         }
         if ($null -ne $BaselineLabel) {
-            $BaselineLabel.Text = "Health score: $($Summary.HealthScore)/100 - $($Summary.HealthStatus). 100 je najbolje. Coverage: $($Summary.HealthCoveragePercent)%."
+            $BaselineLabel.Text = "Health score: $healthScoreDisplay$(if ($healthScoreDisplay -ne 'N/A') { '/100' }) - $($Summary.HealthStatus). 100 je najbolje. Coverage: $($Summary.HealthCoveragePercent)%."
         }
         return
     }
@@ -3272,6 +3273,7 @@ function Update-GuiFindingsGrid {
                 'Warning' { $Grid.Rows[$rowIndex].DefaultCellStyle.BackColor = [System.Drawing.Color]::FromArgb(63, 48, 11) }
                 'Pass' { $Grid.Rows[$rowIndex].DefaultCellStyle.BackColor = [System.Drawing.Color]::FromArgb(6, 55, 48) }
                 'NotAssessed' { $Grid.Rows[$rowIndex].DefaultCellStyle.BackColor = [System.Drawing.Color]::FromArgb(30, 41, 59) }
+                'NotApplicable' { $Grid.Rows[$rowIndex].DefaultCellStyle.BackColor = [System.Drawing.Color]::FromArgb(17, 24, 39) }
             }
         }
         else {
@@ -3312,7 +3314,8 @@ function Update-GuiFilterTree {
                 @{ Value = 'Fail'; Label = 'Neispravno' },
                 @{ Value = 'Warning'; Label = 'Upozorenje' },
                 @{ Value = 'Pass'; Label = 'Proslo' },
-                @{ Value = 'NotAssessed'; Label = 'Nije procijenjeno' }
+                @{ Value = 'NotAssessed'; Label = 'Nije procijenjeno' },
+                @{ Value = 'NotApplicable'; Label = 'Nije primjenjivo' }
             )) {
             $count = @($Findings | Where-Object { $_.Status -eq $statusDefinition.Value }).Count
             $node = $severityRoot.Nodes.Add("$($statusDefinition.Label) ($count)")
@@ -4628,7 +4631,8 @@ public static class ADRiskWindowStyle {
         param([object]$Summary)
         $isHealth = $Summary.PSObject.Properties['AssessmentType'] -and $Summary.AssessmentType -eq 'Health'
         if ($isHealth) {
-            $valueControls.Risk.Text = [string]$Summary.HealthScore
+            $healthScoreDisplay = if ($Summary.PSObject.Properties['HealthScoreDisplay']) { [string]$Summary.HealthScoreDisplay } elseif ($null -eq $Summary.HealthScore) { 'N/A' } else { [string]$Summary.HealthScore }
+            $valueControls.Risk.Text = $healthScoreDisplay
             $valueControls.Total.Text = [string]$Summary.TotalChecks
             $valueControls.Critical.Text = [string]$Summary.Failed
             $valueControls.High.Text = [string]$Summary.Warnings
@@ -4650,7 +4654,7 @@ public static class ADRiskWindowStyle {
             $labelControls.DCs.Text = 'DCs'
             if ($null -ne $scoreColumn) { $scoreColumn.Header = 'Tezina' }
             if ($null -ne $severityColumn) { $severityColumn.Header = 'Health status' }
-            $riskBaselineText.Text = "Health score: $($Summary.HealthScore)/100 - $($Summary.HealthStatus). 100 je najbolje. Coverage: $($Summary.HealthCoveragePercent)%."
+            $riskBaselineText.Text = "Health score: $healthScoreDisplay$(if ($healthScoreDisplay -ne 'N/A') { '/100' }) - $($Summary.HealthStatus). 100 je najbolje. Coverage: $($Summary.HealthCoveragePercent)%."
             return
         }
 
@@ -4762,7 +4766,8 @@ public static class ADRiskWindowStyle {
                     @{ Value = 'Fail'; Label = 'Neispravno' },
                     @{ Value = 'Warning'; Label = 'Upozorenje' },
                     @{ Value = 'Pass'; Label = 'Proslo' },
-                    @{ Value = 'NotAssessed'; Label = 'Nije procijenjeno' }
+                    @{ Value = 'NotAssessed'; Label = 'Nije procijenjeno' },
+                    @{ Value = 'NotApplicable'; Label = 'Nije primjenjivo' }
                 )) {
                 $count = @($allFindings | Where-Object { $_.Status -eq $statusDefinition.Value }).Count
                 $severityRoot.Items.Add((New-WpfTreeItem -Header "$($statusDefinition.Label) ($count)" -Mode 'HealthStatus' -Value $statusDefinition.Value)) | Out-Null
@@ -5202,6 +5207,7 @@ function Get-HealthStatusLabel {
         'Warning' { return 'Upozorenje' }
         'Fail' { return 'Neispravno' }
         'NotAssessed' { return 'Nije procijenjeno' }
+        'NotApplicable' { return 'Nije primjenjivo' }
         default { return (ConvertTo-HealthString $Status) }
     }
 }
@@ -5219,6 +5225,7 @@ function Get-HealthSeverity {
         }
         'Warning' { return 'Medium' }
         'NotAssessed' { return 'Low' }
+        'NotApplicable' { return 'Info' }
         default { return 'Info' }
     }
 }
@@ -5247,7 +5254,7 @@ function Add-HealthCheck {
         [string]$Title,
 
         [Parameter(Mandatory = $true)]
-        [ValidateSet('Pass', 'Warning', 'Fail', 'NotAssessed')]
+        [ValidateSet('Pass', 'Warning', 'Fail', 'NotAssessed', 'NotApplicable')]
         [string]$Status,
 
         [string]$Target = '',
@@ -5263,6 +5270,8 @@ function Add-HealthCheck {
         [int]$Weight = 5,
 
         [switch]$CriticalOnFail,
+
+        [switch]$RequiredForScore,
 
         [string]$Source = 'Interna provjera'
     )
@@ -5291,6 +5300,7 @@ function Add-HealthCheck {
         RuleModel = 'AD Health provjera'
         ScoringMethod = 'Weighted pass/warning/fail'
         CriticalOnFail = [bool]$CriticalOnFail
+        RequiredForScore = [bool]$RequiredForScore
         Source = ConvertTo-HealthString $Source
     }) | Out-Null
 }
@@ -5411,9 +5421,6 @@ function Get-DcdiagQuietResultStatus {
     }
 
     $text = (ConvertTo-HealthString ($Result.StdOut + [Environment]::NewLine + $Result.StdErr)).Trim()
-    if (Test-HealthTextIndicatesPermissionIssue -Text $text) {
-        return 'NotAssessed'
-    }
     if ($Result.TimedOut -or [int]$Result.ExitCode -ne 0 -or -not [string]::IsNullOrWhiteSpace($text)) {
         return 'Fail'
     }
@@ -5467,13 +5474,13 @@ function Resolve-HealthHostAddresses {
 
 function Get-HealthCategoryDefinitions {
     return @(
-        [pscustomobject]@{ Name = 'Dostupnost DC-a'; Weight = 20 },
-        [pscustomobject]@{ Name = 'DNS'; Weight = 20 },
-        [pscustomobject]@{ Name = 'Replikacija'; Weight = 20 },
+        [pscustomobject]@{ Name = 'AD osnovne usluge'; Weight = 20 },
+        [pscustomobject]@{ Name = 'DNS'; Weight = 25 },
+        [pscustomobject]@{ Name = 'Replikacija'; Weight = 15 },
         [pscustomobject]@{ Name = 'SYSVOL i Group Policy'; Weight = 15 },
         [pscustomobject]@{ Name = 'Vrijeme'; Weight = 10 },
-        [pscustomobject]@{ Name = 'AD konfiguracija'; Weight = 10 },
-        [pscustomobject]@{ Name = 'DCDiag'; Weight = 5 }
+        [pscustomobject]@{ Name = 'AD konfiguracija'; Weight = 5 },
+        [pscustomobject]@{ Name = 'DCDiag'; Weight = 10 }
     )
 }
 
@@ -5486,12 +5493,13 @@ function Get-HealthAnalysis {
     $weightedScore = 0.0
     $assessedCategoryWeight = 0.0
     $coveredCategoryWeight = 0.0
-    $totalCategoryWeight = [double](@($categoryDefinitions | Measure-Object -Property Weight -Sum).Sum)
+    $applicableCategoryWeight = 0.0
 
     foreach ($definition in $categoryDefinitions) {
         $items = @($allChecks | Where-Object { $_.Category -eq $definition.Name -and [int]$_.HealthWeight -gt 0 })
-        $totalCheckWeight = [double](@($items | Measure-Object -Property HealthWeight -Sum).Sum)
-        $assessedItems = @($items | Where-Object { $_.Status -ne 'NotAssessed' })
+        $applicableItems = @($items | Where-Object { $_.Status -ne 'NotApplicable' })
+        $totalCheckWeight = [double](@($applicableItems | Measure-Object -Property HealthWeight -Sum).Sum)
+        $assessedItems = @($applicableItems | Where-Object { $_.Status -ne 'NotAssessed' })
         $assessedCheckWeight = [double](@($assessedItems | Measure-Object -Property HealthWeight -Sum).Sum)
         $earned = 0.0
 
@@ -5506,25 +5514,32 @@ function Get-HealthAnalysis {
             [int][math]::Round((100.0 * $earned / $assessedCheckWeight), 0)
         }
         else {
-            0
+            $null
         }
         $coverage = if ($totalCheckWeight -gt 0) {
             [int][math]::Round((100.0 * $assessedCheckWeight / $totalCheckWeight), 0)
         }
         else {
-            0
+            100
         }
 
-        if ($assessedCheckWeight -gt 0) {
+        if ($totalCheckWeight -gt 0) {
+            $applicableCategoryWeight += [double]$definition.Weight
+            $coveredCategoryWeight += ([double]$definition.Weight * ($coverage / 100.0))
+        }
+        if ($assessedCheckWeight -gt 0 -and $null -ne $categoryScore) {
             $weightedScore += ($categoryScore * [double]$definition.Weight)
             $assessedCategoryWeight += [double]$definition.Weight
         }
-        $coveredCategoryWeight += ([double]$definition.Weight * ($coverage / 100.0))
 
         $failed = @($items | Where-Object { $_.Status -eq 'Fail' }).Count
         $warnings = @($items | Where-Object { $_.Status -eq 'Warning' }).Count
         $notAssessed = @($items | Where-Object { $_.Status -eq 'NotAssessed' }).Count
-        $categoryStatus = if ($assessedCheckWeight -le 0) {
+        $notApplicable = @($items | Where-Object { $_.Status -eq 'NotApplicable' }).Count
+        $categoryStatus = if ($totalCheckWeight -le 0) {
+            'Nije primjenjivo'
+        }
+        elseif ($assessedCheckWeight -le 0) {
             'Nije procijenjeno'
         }
         elseif (@($items | Where-Object { $_.Status -eq 'Fail' -and $_.CriticalOnFail }).Count -gt 0) {
@@ -5544,46 +5559,59 @@ function Get-HealthAnalysis {
             Name = $definition.Name
             Weight = [int]$definition.Weight
             Score = $categoryScore
+            ScoreDisplay = if ($null -eq $categoryScore) { 'N/A' } else { [string]$categoryScore }
             CoveragePercent = $coverage
             Status = $categoryStatus
             Passed = @($items | Where-Object { $_.Status -eq 'Pass' }).Count
             Warnings = $warnings
             Failed = $failed
             NotAssessed = $notAssessed
+            NotApplicable = $notApplicable
             Total = $items.Count
         }) | Out-Null
     }
 
-    $healthScore = if ($assessedCategoryWeight -gt 0) {
+    $coveragePercent = if ($applicableCategoryWeight -gt 0) {
+        [int][math]::Round((100.0 * $coveredCategoryWeight / $applicableCategoryWeight), 0)
+    }
+    else {
+        0
+    }
+    $requiredNotAssessed = @($allChecks | Where-Object {
+        $_.PSObject.Properties['RequiredForScore'] -and
+        [bool]$_.RequiredForScore -and
+        $_.Status -eq 'NotAssessed'
+    })
+    $scoreAvailable = (
+        $coveragePercent -ge 85 -and
+        $requiredNotAssessed.Count -eq 0 -and
+        $assessedCategoryWeight -gt 0
+    )
+    $healthScore = if ($scoreAvailable) {
         [int][math]::Round(($weightedScore / $assessedCategoryWeight), 0)
     }
     else {
-        0
-    }
-    $coveragePercent = if ($totalCategoryWeight -gt 0) {
-        [int][math]::Round((100.0 * $coveredCategoryWeight / $totalCategoryWeight), 0)
-    }
-    else {
-        0
+        $null
     }
 
     $failedCount = @($allChecks | Where-Object { $_.Status -eq 'Fail' }).Count
     $warningCount = @($allChecks | Where-Object { $_.Status -eq 'Warning' }).Count
     $criticalFailureCount = @($allChecks | Where-Object { $_.Status -eq 'Fail' -and $_.CriticalOnFail }).Count
-    $coreCategoryNames = @('Dostupnost DC-a', 'DNS', 'Replikacija', 'SYSVOL i Group Policy', 'Vrijeme')
+    $coreCategoryNames = @('AD osnovne usluge', 'DNS', 'SYSVOL i Group Policy', 'Vrijeme', 'DCDiag')
     $unassessedCoreCategories = @($categoryResults.ToArray() | Where-Object {
-        $_.Name -in $coreCategoryNames -and $_.CoveragePercent -lt 50
+        $_.Name -in $coreCategoryNames -and $_.Status -ne 'Nije primjenjivo' -and $_.CoveragePercent -lt 85
     })
-    $overallStatus = if ($coveragePercent -lt 50 -or $unassessedCoreCategories.Count -gt 0) {
-        'Nepotpuna procjena'
-    }
-    elseif ($criticalFailureCount -gt 0) {
+    $isComplete = ($scoreAvailable -and $unassessedCoreCategories.Count -eq 0)
+    $overallStatus = if ($criticalFailureCount -gt 0) {
         'Kriticno'
     }
     elseif ($failedCount -gt 0) {
         'Naruseno'
     }
-    elseif ($warningCount -gt 0 -or $coveragePercent -lt 80) {
+    elseif (-not $isComplete) {
+        'Nepotpuna procjena'
+    }
+    elseif ($warningCount -gt 0) {
         'Upozorenje'
     }
     else {
@@ -5592,17 +5620,23 @@ function Get-HealthAnalysis {
 
     return [pscustomobject][ordered]@{
         Score = $healthScore
+        ScoreDisplay = if ($null -eq $healthScore) { 'N/A' } else { [string]$healthScore }
+        ScoreAvailable = $scoreAvailable
         Status = $overallStatus
         CoveragePercent = $coveragePercent
-        IsComplete = ($coveragePercent -ge 80 -and $unassessedCoreCategories.Count -eq 0)
+        IsComplete = $isComplete
         UnassessedCoreCategories = @($unassessedCoreCategories | Select-Object -ExpandProperty Name)
+        RequiredChecksNotAssessed = @($requiredNotAssessed | ForEach-Object {
+            [pscustomobject]@{ Id = $_.Id; Target = $_.AffectedObject; Title = $_.Title }
+        })
         Passed = @($allChecks | Where-Object { $_.Status -eq 'Pass' }).Count
         Warnings = $warningCount
         Failed = $failedCount
         NotAssessed = @($allChecks | Where-Object { $_.Status -eq 'NotAssessed' }).Count
+        NotApplicable = @($allChecks | Where-Object { $_.Status -eq 'NotApplicable' }).Count
         Total = $allChecks.Count
         CategoryScores = @($categoryResults.ToArray())
-        Methodology = 'Health score je tezinski prosjek procijenjenih kategorija. 100 je najbolje; Warning nosi 50%, Fail 0%, a Nije procijenjeno ne ulazi u score i smanjuje coverage.'
+        Methodology = 'Health score je dostupan samo kada je procijenjeno najmanje 85% primjenjivih kontrola i kada su izvrsene sve obavezne core provjere. 100 je najbolje; Warning nosi 50%, Fail 0%, NotApplicable ne ulazi u coverage, a NotAssessed blokira score kada je provjera obavezna.'
     }
 }
 
@@ -5655,10 +5689,12 @@ function Write-HealthHtmlReport {
             'Kriticno' { 'fail' }
             default { 'na' }
         }
+        $categoryScoreDisplay = if ($category.PSObject.Properties['ScoreDisplay']) { $category.ScoreDisplay } elseif ($null -eq $category.Score) { 'N/A' } else { [string]$category.Score }
+        $categoryBarWidth = if ($null -eq $category.Score) { 0 } else { [int]$category.Score }
         $categoryCards.Add(@"
 <div class="category-card $className">
-  <div class="category-head"><strong>$(ConvertTo-HealthHtmlText $category.Name)</strong><span>$($category.Score)/100</span></div>
-  <div class="bar"><i style="width:$($category.Score)%"></i></div>
+  <div class="category-head"><strong>$(ConvertTo-HealthHtmlText $category.Name)</strong><span>$categoryScoreDisplay$(if ($categoryScoreDisplay -ne 'N/A') { '/100' })</span></div>
+  <div class="bar"><i style="width:$categoryBarWidth%"></i></div>
   <div class="category-meta">Status: $(ConvertTo-HealthHtmlText $category.Status) | Coverage: $($category.CoveragePercent)% | Fail: $($category.Failed) | Warning: $($category.Warnings)</div>
 </div>
 "@) | Out-Null
@@ -5705,7 +5741,16 @@ function Write-HealthHtmlReport {
     }
 
     $coverageWarning = if (-not $Summary.HealthScoreDetails.IsComplete) {
-        '<div class="coverage-warning"><strong>Nepotpuna procjena:</strong> dio dubinskih provjera nije bilo moguce izvrsiti. Health score opisuje samo procijenjeni dio; coverage pokazuje obuhvat.</div>'
+        $missingRequired = @($Summary.HealthScoreDetails.RequiredChecksNotAssessed | ForEach-Object {
+            "$(ConvertTo-HealthHtmlText $_.Id) ($(ConvertTo-HealthHtmlText $_.Target))"
+        })
+        $missingText = if ($missingRequired.Count -gt 0) {
+            " Obavezne neizvrsene provjere: $($missingRequired -join ', ')."
+        }
+        else {
+            ''
+        }
+        "<div class=`"coverage-warning`"><strong>Nepotpuna procjena:</strong> Health score nije objavljen dok coverage nije najmanje 85% i dok sve obavezne core provjere nisu izvrsene.$missingText</div>"
     }
     else {
         ''
@@ -5742,17 +5787,17 @@ function Write-HealthHtmlReport {
     Klijent: <strong>$safeClient</strong><br />
     Domena: <strong>$safeDomain</strong><br />
     Generisano: <strong>$safeGenerated</strong><br />
-    Model: <strong>Weighted AD Health model v1</strong>
+    Model: <strong>Protocol-aware AD Health model v2</strong>
   </div>
   <div class="cards">
-    <div class="card"><div class="label">Health score</div><div class="value">$($Summary.HealthScore)</div></div>
+    <div class="card"><div class="label">Health score</div><div class="value">$($Summary.HealthScoreDisplay)</div></div>
     <div class="card"><div class="label">Status</div><div class="value" style="font-size:20px">$safeStatus</div></div>
     <div class="card"><div class="label">Coverage</div><div class="value">$($Summary.HealthCoveragePercent)%</div></div>
     <div class="card"><div class="label">Proslo</div><div class="value status-pass">$($Summary.Passed)</div></div>
     <div class="card"><div class="label">Upozorenje</div><div class="value status-warning">$($Summary.Warnings)</div></div>
     <div class="card"><div class="label">Neispravno</div><div class="value status-fail">$($Summary.Failed)</div></div>
   </div>
-  <div class="score-note"><strong>Kako citati rezultat:</strong> Health score koristi skalu 0-100 gdje je 100 najbolje. Nije procijenjeno ne ulazi u score i zato se coverage prikazuje odvojeno.</div>
+  <div class="score-note"><strong>Kako citati rezultat:</strong> 100 znaci potpuno zdrav procijenjeni AD, a 0 potpuno neispravan. Coverage je udio primjenjivih tezinskih provjera koje su stvarno izvrsene; Nije primjenjivo se izuzima. Port dostupnost je samo dijagnostika i ne donosi bodove. N/A znaci da nema dovoljno pouzdanih podataka za score.</div>
   $coverageWarning
   <section>
     <h2>Health po oblastima</h2>
@@ -5861,10 +5906,342 @@ function Get-HealthCommandPath {
     param([string]$Name)
 
     $command = Get-Command $Name -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($null -eq $command) {
-        return $null
+    if ($null -ne $command) {
+        foreach ($propertyName in @('Path', 'Source', 'Definition')) {
+            $property = $command.PSObject.Properties[$propertyName]
+            if ($null -ne $property -and -not [string]::IsNullOrWhiteSpace([string]$property.Value)) {
+                $candidate = [string]$property.Value
+                if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+                    return (Resolve-Path -LiteralPath $candidate).Path
+                }
+            }
+        }
     }
-    return $command.Source
+
+    $windowsRoot = if (-not [string]::IsNullOrWhiteSpace($env:SystemRoot)) { $env:SystemRoot } else { $env:windir }
+    if (-not [string]::IsNullOrWhiteSpace($windowsRoot)) {
+        foreach ($directory in @('Sysnative', 'System32')) {
+            $candidate = Join-Path (Join-Path $windowsRoot $directory) $Name
+            if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+                return $candidate
+            }
+        }
+    }
+
+    return $null
+}
+
+function Test-HealthLocalComputer {
+    param([string]$ComputerName)
+
+    if ([string]::IsNullOrWhiteSpace($ComputerName)) {
+        return $false
+    }
+
+    $targetShort = (($ComputerName.TrimEnd('.')) -split '\.')[0]
+    $localNames = @(
+        $env:COMPUTERNAME,
+        [System.Net.Dns]::GetHostName()
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+
+    return @($localNames | Where-Object {
+        (([string]$_ -split '\.')[0]).Equals($targetShort, [System.StringComparison]::OrdinalIgnoreCase)
+    }).Count -gt 0
+}
+
+function Test-HealthPrivateOrLocalIpAddress {
+    param([string]$Address)
+
+    $ip = $null
+    $normalized = ([string]$Address).Split('%')[0]
+    if (-not [System.Net.IPAddress]::TryParse($normalized, [ref]$ip)) {
+        return $false
+    }
+
+    if ([System.Net.IPAddress]::IsLoopback($ip)) {
+        return $true
+    }
+    $bytes = $ip.GetAddressBytes()
+    if ($ip.AddressFamily -eq [System.Net.Sockets.AddressFamily]::InterNetwork) {
+        return (
+            $bytes[0] -eq 10 -or
+            ($bytes[0] -eq 172 -and $bytes[1] -ge 16 -and $bytes[1] -le 31) -or
+            ($bytes[0] -eq 192 -and $bytes[1] -eq 168) -or
+            ($bytes[0] -eq 169 -and $bytes[1] -eq 254)
+        )
+    }
+
+    return (
+        ($bytes[0] -band 0xFE) -eq 0xFC -or
+        ($bytes[0] -eq 0xFE -and ($bytes[1] -band 0xC0) -eq 0x80)
+    )
+}
+
+function Test-HealthIpv4InCidr {
+    param(
+        [string]$Address,
+        [string]$Cidr
+    )
+
+    if ($Cidr -notmatch '^([^/]+)/(\d{1,2})$') {
+        return $false
+    }
+    $addressIp = $null
+    $networkIp = $null
+    if (-not [System.Net.IPAddress]::TryParse($Address, [ref]$addressIp) -or
+        -not [System.Net.IPAddress]::TryParse($matches[1], [ref]$networkIp) -or
+        $addressIp.AddressFamily -ne [System.Net.Sockets.AddressFamily]::InterNetwork -or
+        $networkIp.AddressFamily -ne [System.Net.Sockets.AddressFamily]::InterNetwork) {
+        return $false
+    }
+    $prefixLength = [int]$matches[2]
+    if ($prefixLength -lt 0 -or $prefixLength -gt 32) {
+        return $false
+    }
+
+    $addressBytes = $addressIp.GetAddressBytes()
+    $networkBytes = $networkIp.GetAddressBytes()
+    $wholeBytes = [math]::Floor($prefixLength / 8)
+    $remainingBits = $prefixLength % 8
+    for ($index = 0; $index -lt $wholeBytes; $index++) {
+        if ($addressBytes[$index] -ne $networkBytes[$index]) {
+            return $false
+        }
+    }
+    if ($remainingBits -gt 0) {
+        $mask = (0xFF -shl (8 - $remainingBits)) -band 0xFF
+        if (($addressBytes[$wholeBytes] -band $mask) -ne ($networkBytes[$wholeBytes] -band $mask)) {
+            return $false
+        }
+    }
+    return $true
+}
+
+function Get-HealthDnsClientConfiguration {
+    param(
+        [string]$ComputerName,
+        [System.Management.Automation.PSCredential]$Credential
+    )
+
+    $cimSession = $null
+    try {
+        $isLocal = Test-HealthLocalComputer -ComputerName $ComputerName
+        if ($null -ne (Get-Command Get-CimInstance -ErrorAction SilentlyContinue)) {
+            if ($isLocal) {
+                $adapters = @(Get-CimInstance -ClassName Win32_NetworkAdapterConfiguration -Filter 'IPEnabled=True' -ErrorAction Stop)
+            }
+            else {
+                $sessionParams = @{
+                    ComputerName = $ComputerName
+                    ErrorAction = 'Stop'
+                }
+                if ($null -ne $Credential) {
+                    $sessionParams.Credential = $Credential
+                }
+                if ($null -ne (Get-Command New-CimSessionOption -ErrorAction SilentlyContinue)) {
+                    $sessionParams.SessionOption = New-CimSessionOption -Protocol Dcom
+                }
+                $cimSession = New-CimSession @sessionParams
+                $adapters = @(Get-CimInstance -CimSession $cimSession -ClassName Win32_NetworkAdapterConfiguration -Filter 'IPEnabled=True' -OperationTimeoutSec 15 -ErrorAction Stop)
+            }
+        }
+        elseif ($null -ne (Get-Command Get-WmiObject -ErrorAction SilentlyContinue)) {
+            $wmiParams = @{
+                Class = 'Win32_NetworkAdapterConfiguration'
+                Filter = 'IPEnabled=True'
+                ErrorAction = 'Stop'
+            }
+            if (-not $isLocal) {
+                $wmiParams.ComputerName = $ComputerName
+                if ($null -ne $Credential) {
+                    $wmiParams.Credential = $Credential
+                }
+            }
+            $adapters = @(Get-WmiObject @wmiParams)
+        }
+        else {
+            throw 'CIM/WMI cmdleti nisu dostupni.'
+        }
+
+        $resultAdapters = @($adapters | ForEach-Object {
+            [pscustomobject][ordered]@{
+                Description = ConvertTo-HealthString $_.Description
+                SettingId = ConvertTo-HealthString $_.SettingID
+                IpAddresses = @($_.IPAddress | ForEach-Object { ConvertTo-HealthString $_ })
+                DefaultGateways = @($_.DefaultIPGateway | ForEach-Object { ConvertTo-HealthString $_ })
+                DnsServers = @($_.DNSServerSearchOrder | ForEach-Object { ConvertTo-HealthString $_ })
+                DnsDomain = ConvertTo-HealthString $_.DNSDomain
+                DnsHostName = ConvertTo-HealthString $_.DNSHostName
+            }
+        })
+
+        return [pscustomobject][ordered]@{
+            Success = $true
+            IsLocal = $isLocal
+            Adapters = $resultAdapters
+            Error = ''
+        }
+    }
+    catch {
+        return [pscustomobject][ordered]@{
+            Success = $false
+            IsLocal = (Test-HealthLocalComputer -ComputerName $ComputerName)
+            Adapters = @()
+            Error = ConvertTo-HealthString $_.Exception.Message
+        }
+    }
+    finally {
+        if ($null -ne $cimSession) {
+            Remove-CimSession -CimSession $cimSession -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+function Test-HealthLdapDirectoryService {
+    param(
+        [string]$ComputerName,
+        [ValidateSet('Negotiate', 'Kerberos')]
+        [string]$AuthenticationType,
+        [System.Management.Automation.PSCredential]$Credential
+    )
+
+    $connection = $null
+    try {
+        Add-Type -AssemblyName System.DirectoryServices.Protocols -ErrorAction Stop
+        $identifier = [System.DirectoryServices.Protocols.LdapDirectoryIdentifier]::new($ComputerName, 389, $false, $false)
+        $connection = [System.DirectoryServices.Protocols.LdapConnection]::new($identifier)
+        $connection.Timeout = [TimeSpan]::FromSeconds(15)
+        $connection.SessionOptions.ProtocolVersion = 3
+        $connection.AuthType = [System.DirectoryServices.Protocols.AuthType]::$AuthenticationType
+        if ($null -ne $Credential) {
+            $connection.Credential = $Credential.GetNetworkCredential()
+        }
+        $connection.Bind()
+
+        $request = [System.DirectoryServices.Protocols.SearchRequest]::new()
+        $request.DistinguishedName = ''
+        $request.Filter = '(objectClass=*)'
+        $request.Scope = [System.DirectoryServices.Protocols.SearchScope]::Base
+        foreach ($attributeName in @('defaultNamingContext', 'dnsHostName', 'dsServiceName', 'supportedCapabilities')) {
+            [void]$request.Attributes.Add($attributeName)
+        }
+        $response = [System.DirectoryServices.Protocols.SearchResponse]$connection.SendRequest($request)
+        if ($response.Entries.Count -lt 1) {
+            throw 'RootDSE upit nije vratio rezultat.'
+        }
+
+        $entry = $response.Entries[0]
+        $defaultNamingContext = if ($entry.Attributes['defaultNamingContext'] -and $entry.Attributes['defaultNamingContext'].Count -gt 0) {
+            ConvertTo-HealthString $entry.Attributes['defaultNamingContext'][0]
+        }
+        else {
+            ''
+        }
+        $dnsHostName = if ($entry.Attributes['dnsHostName'] -and $entry.Attributes['dnsHostName'].Count -gt 0) {
+            ConvertTo-HealthString $entry.Attributes['dnsHostName'][0]
+        }
+        else {
+            ''
+        }
+        $dsServiceName = if ($entry.Attributes['dsServiceName'] -and $entry.Attributes['dsServiceName'].Count -gt 0) {
+            ConvertTo-HealthString $entry.Attributes['dsServiceName'][0]
+        }
+        else {
+            ''
+        }
+
+        return [pscustomobject][ordered]@{
+            Success = (-not [string]::IsNullOrWhiteSpace($defaultNamingContext) -and -not [string]::IsNullOrWhiteSpace($dsServiceName))
+            AuthenticationType = $AuthenticationType
+            DefaultNamingContext = $defaultNamingContext
+            DnsHostName = $dnsHostName
+            DsServiceName = $dsServiceName
+            Error = ''
+        }
+    }
+    catch {
+        return [pscustomobject][ordered]@{
+            Success = $false
+            AuthenticationType = $AuthenticationType
+            DefaultNamingContext = ''
+            DnsHostName = ''
+            DsServiceName = ''
+            Error = ConvertTo-HealthString $_.Exception.Message
+        }
+    }
+    finally {
+        if ($null -ne $connection) {
+            $connection.Dispose()
+        }
+    }
+}
+
+function Resolve-HealthSrvRecords {
+    param(
+        [string]$Name,
+        [string]$DnsServer = ''
+    )
+
+    $method = 'Unavailable'
+    try {
+        if ($null -eq (Get-Command Resolve-DnsName -ErrorAction SilentlyContinue)) {
+            Import-Module DnsClient -ErrorAction SilentlyContinue
+        }
+        if ($null -ne (Get-Command Resolve-DnsName -ErrorAction SilentlyContinue)) {
+            $method = 'Resolve-DnsName'
+            $params = @{
+                Name = $Name
+                Type = 'SRV'
+                ErrorAction = 'Stop'
+            }
+            if (-not [string]::IsNullOrWhiteSpace($DnsServer)) {
+                $params.Server = $DnsServer
+            }
+            $records = @(Resolve-DnsName @params)
+            $targets = @($records | ForEach-Object { $_.NameTarget } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+                ForEach-Object { ([string]$_).TrimEnd('.') } |
+                Sort-Object -Unique)
+            return [pscustomobject][ordered]@{
+                Success = ($targets.Count -gt 0)
+                Targets = $targets
+                Method = $method
+                Output = ''
+                Error = ''
+            }
+        }
+
+        $nslookupPath = Get-HealthCommandPath -Name 'nslookup.exe'
+        if ($null -eq $nslookupPath) {
+            throw 'Resolve-DnsName, DnsClient modul i nslookup.exe nisu dostupni.'
+        }
+        $method = 'nslookup'
+        $arguments = @('-type=SRV', $Name)
+        if (-not [string]::IsNullOrWhiteSpace($DnsServer)) {
+            $arguments += $DnsServer
+        }
+        $result = Invoke-HealthNativeCommand -FilePath $nslookupPath -Arguments $arguments -TimeoutSeconds 20
+        $text = ($result.StdOut + [Environment]::NewLine + $result.StdErr).Trim()
+        $targets = @([regex]::Matches($text, '(?im)(?:svr hostname|service|target)\s*=\s*([^\s]+)') |
+            ForEach-Object { $_.Groups[1].Value.TrimEnd('.') } |
+            Sort-Object -Unique)
+        return [pscustomobject][ordered]@{
+            Success = (-not $result.TimedOut -and $result.ExitCode -eq 0 -and $targets.Count -gt 0)
+            Targets = $targets
+            Method = $method
+            Output = $text
+            Error = ConvertTo-HealthString $result.StdErr
+        }
+    }
+    catch {
+        return [pscustomobject][ordered]@{
+            Success = $false
+            Targets = @()
+            Method = $method
+            Output = ''
+            Error = ConvertTo-HealthString $_.Exception.Message
+        }
+    }
 }
 
 if (-not (Test-Path -LiteralPath $OutputPath)) {
@@ -5965,71 +6342,201 @@ if ($dcNames.Count -eq 0) {
 
 Add-HealthCheck -Id 'HC-CAP-001' -Category 'AD konfiguracija' -Title 'ActiveDirectory PowerShell modul je dostupan' `
     -Status $(if ($adModuleAvailable) { 'Pass' } else { 'NotAssessed' }) -Target $env:COMPUTERNAME -ObjectType 'Collector' `
-    -Evidence @{ ActiveDirectoryModule = $adModuleAvailable } -Weight 0 `
+    -Evidence @{ ActiveDirectoryModule = $adModuleAvailable } -Weight 0 -RequiredForScore `
     -Recommendation 'Za potpunu procjenu pokrenuti sa management sistema ili DC-a koji ima instaliran AD DS RSAT modul.'
 
+$isElevated = $false
+try {
+    $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = [System.Security.Principal.WindowsPrincipal]::new($identity)
+    $isElevated = $principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+catch {
+}
+$collectorIsDc = @($dcNames | Where-Object { Test-HealthLocalComputer -ComputerName $_ }).Count -gt 0
+Add-HealthCheck -Id 'HC-CAP-002' -Category 'AD konfiguracija' -Title 'Health kolektor je pokrenut elevatovano' `
+    -Status $(if ($isElevated) { 'Pass' } else { 'NotAssessed' }) -Target $env:COMPUTERNAME -ObjectType 'Collector' `
+    -Evidence @{ ElevatedAdministrator = $isElevated; CollectorIsDomainController = $collectorIsDc; User = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name } `
+    -Weight 0 -RequiredForScore -Source 'Windows access token' `
+    -Recommendation 'Pokrenuti PowerShell sa Run as administrator. Microsoft DCDiag zahtijeva elevatovan proces; bez toga Health score nije pouzdan.'
+
 $dcReachability = @{}
+$dcAddressMap = @{}
+$dnsClientResults = @{}
 foreach ($dcName in $dcNames) {
     $addresses = @(Resolve-HealthHostAddresses -ComputerName $dcName)
+    $dcAddressMap[$dcName] = $addresses
     $dnsStatus = if ($addresses.Count -gt 0) { 'Pass' } else { 'Fail' }
-    Add-HealthCheck -Id 'HC-DC-001' -Category 'Dostupnost DC-a' -Title 'DC hostname se razrjesava u IP adresu' `
+    Add-HealthCheck -Id 'HC-DC-001' -Category 'AD osnovne usluge' -Title 'DC hostname se razrjesava u IP adresu' `
         -Status $dnsStatus -Target $dcName -ObjectType 'Domain controller' -Evidence @{ Addresses = $addresses } `
-        -Weight 3 -CriticalOnFail -Source 'DNS host resolution' `
+        -Weight 2 -CriticalOnFail -RequiredForScore -Source 'DNS host resolution' `
         -Recommendation 'Provjeriti A/AAAA zapise, DNS suffix, delegaciju zone i dostupnost autoritativnih DNS servera.'
 
     $portResults = [ordered]@{}
-    foreach ($port in @(88, 389, 445, 135)) {
+    foreach ($port in @(53, 88, 135, 389, 445, 464, 9389)) {
         $portResults["TCP$port"] = Test-HealthTcpPort -ComputerName $dcName -Port $port -TimeoutMilliseconds $TcpTimeoutMilliseconds
     }
     $dcReachability[$dcName] = $portResults
 
     foreach ($portDefinition in @(
-            @{ Port = 88; Name = 'Kerberos KDC'; Critical = $true },
-            @{ Port = 389; Name = 'LDAP'; Critical = $true },
-            @{ Port = 445; Name = 'SMB'; Critical = $true },
-            @{ Port = 135; Name = 'RPC endpoint mapper'; Critical = $false }
+            @{ Port = 53; Name = 'DNS TCP' },
+            @{ Port = 88; Name = 'Kerberos KDC TCP' },
+            @{ Port = 135; Name = 'RPC endpoint mapper' },
+            @{ Port = 389; Name = 'LDAP TCP' },
+            @{ Port = 445; Name = 'SMB TCP' },
+            @{ Port = 464; Name = 'Kerberos password change TCP' },
+            @{ Port = 9389; Name = 'Active Directory Web Services TCP' }
         )) {
         $portOpen = [bool]$portResults["TCP$($portDefinition.Port)"]
-        Add-HealthCheck -Id "HC-DC-$($portDefinition.Port)" -Category 'Dostupnost DC-a' `
-            -Title "$($portDefinition.Name) je dostupan na TCP $($portDefinition.Port)" `
-            -Status $(if ($portOpen) { 'Pass' } else { 'Fail' }) -Target $dcName -ObjectType 'Domain controller' `
-            -Evidence @{ Port = $portDefinition.Port; Reachable = $portOpen } -Weight $(if ($portDefinition.Critical) { 4 } else { 2 }) `
-            -CriticalOnFail:([bool]$portDefinition.Critical) -Source 'TCP connectivity' `
-            -Recommendation "Provjeriti servis, lokalni firewall, mrezni ACL i routing za TCP $($portDefinition.Port)."
+        Add-HealthCheck -Id "HC-PORT-$($portDefinition.Port)" -Category 'AD osnovne usluge' `
+            -Title "$($portDefinition.Name) transport je dostupan na portu $($portDefinition.Port)" `
+            -Status $(if ($portOpen) { 'Pass' } else { 'Warning' }) -Target $dcName -ObjectType 'Domain controller' `
+            -Evidence @{ Port = $portDefinition.Port; Reachable = $portOpen; Note = 'Otvoren port ne dokazuje da AD protokol radi ispravno.' } -Weight 0 `
+            -Source 'TCP transport dijagnostika' `
+            -Recommendation "Provjeriti servis, lokalni firewall, mrezni ACL i routing za TCP $($portDefinition.Port). Ova provjera ne zamjenjuje LDAP, Kerberos ili DCDiag test."
+    }
+
+    $ldapResult = Test-HealthLdapDirectoryService -ComputerName $dcName -AuthenticationType Negotiate -Credential $Credential
+    Add-HealthCheck -Id 'HC-LDAP-001' -Category 'AD osnovne usluge' -Title 'LDAP RootDSE bind i AD identitet DC-a rade' `
+        -Status $(if ($ldapResult.Success) { 'Pass' } else { 'Fail' }) -Target $dcName -ObjectType 'Domain controller' `
+        -Evidence $ldapResult -Weight 7 -CriticalOnFail -RequiredForScore -Source 'LDAP RootDSE bind' `
+        -Recommendation 'Otkloniti LDAP bind, DNS, NTDS servis, autentikaciju ili firewall problem. Otvoren TCP 389 nije dovoljan dokaz ispravnog LDAP-a.'
+
+    $kerberosLdapResult = Test-HealthLdapDirectoryService -ComputerName $dcName -AuthenticationType Kerberos -Credential $Credential
+    Add-HealthCheck -Id 'HC-KERBEROS-001' -Category 'AD osnovne usluge' -Title 'Kerberos autentikovani LDAP bind prema DC-u radi' `
+        -Status $(if ($kerberosLdapResult.Success) { 'Pass' } else { 'Fail' }) -Target $dcName -ObjectType 'Domain controller' `
+        -Evidence $kerberosLdapResult -Weight 7 -CriticalOnFail -RequiredForScore -Source 'LDAP bind sa Kerberos AuthType' `
+        -Recommendation 'Provjeriti KDC servis, vrijeme, DNS, SPN-ove i machine account DC-a. Otvoren TCP 88 ne dokazuje da Kerberos izdaje ispravne tickete.'
+
+    $dnsClientResult = Get-HealthDnsClientConfiguration -ComputerName $dcName -Credential $Credential
+    $dnsClientResults[$dcName] = $dnsClientResult
+    if (-not $dnsClientResult.Success) {
+        Add-HealthCheck -Id 'HC-DNS-CLIENT-001' -Category 'DNS' -Title 'DNS client postavke DC-a koriste interne AD DNS resolvere' `
+            -Status 'NotAssessed' -Target $dcName -ObjectType 'Domain controller DNS client' -Weight 12 -CriticalOnFail -RequiredForScore `
+            -Evidence @{ Error = $dnsClientResult.Error; IsLocal = $dnsClientResult.IsLocal } -Source 'CIM/WMI Win32_NetworkAdapterConfiguration' `
+            -Recommendation 'Pokrenuti kao administrator na DC-u ili omoguciti administrativni CIM/WMI pristup do DC-a.'
+    }
+    else {
+        $configuredResolvers = @($dnsClientResult.Adapters | ForEach-Object { $_.DnsServers } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+            ForEach-Object { ([string]$_).Split('%')[0] } |
+            Sort-Object -Unique)
+        $resolverTests = @($configuredResolvers | ForEach-Object {
+            $resolver = [string]$_
+            $ldapSrv = Resolve-HealthSrvRecords -Name "_ldap._tcp.dc._msdcs.$domainDns" -DnsServer $resolver
+            $kerberosSrv = Resolve-HealthSrvRecords -Name "_kerberos._tcp.dc._msdcs.$domainDns" -DnsServer $resolver
+            [pscustomobject][ordered]@{
+                Resolver = $resolver
+                LdapSrvSuccess = [bool]$ldapSrv.Success
+                LdapTargets = @($ldapSrv.Targets)
+                KerberosSrvSuccess = [bool]$kerberosSrv.Success
+                KerberosTargets = @($kerberosSrv.Targets)
+                Method = "$($ldapSrv.Method)/$($kerberosSrv.Method)"
+                Error = (($ldapSrv.Error, $kerberosSrv.Error) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join ' | '
+            }
+        })
+        $invalidResolvers = @($resolverTests | Where-Object { -not $_.LdapSrvSuccess -or -not $_.KerberosSrvSuccess })
+        $publicResolvers = @($configuredResolvers | Where-Object { -not (Test-HealthPrivateOrLocalIpAddress -Address $_) })
+        $dcAddressSet = @('127.0.0.1', '::1') + @($dcAddressMap.Values | ForEach-Object { $_ })
+        $nonDcResolvers = @($configuredResolvers | Where-Object { $dcAddressSet -notcontains $_ })
+        $dnsClientStatus = if ($configuredResolvers.Count -eq 0) {
+            'Fail'
+        }
+        elseif ($publicResolvers.Count -gt 0 -or $invalidResolvers.Count -gt 0) {
+            'Fail'
+        }
+        else {
+            'Pass'
+        }
+        Add-HealthCheck -Id 'HC-DNS-CLIENT-001' -Category 'DNS' -Title 'DNS client postavke DC-a koriste resolvere koji vracaju interne AD zapise' `
+            -Status $dnsClientStatus -Target $dcName -ObjectType 'Domain controller DNS client' -Weight 12 -CriticalOnFail -RequiredForScore `
+            -Evidence @{
+                Adapters = @($dnsClientResult.Adapters)
+                ConfiguredResolvers = $configuredResolvers
+                PublicOrIspResolvers = $publicResolvers
+                ResolverValidation = $resolverTests
+                ResolversOutsideDiscoveredDcAddresses = $nonDcResolvers
+            } -Source 'CIM/WMI DNS client konfiguracija + direktni SRV upit svakom resolveru' `
+            -Recommendation 'DC DNS client mora koristiti interni DNS koji je autoritativan za AD zonu. Google, ISP ili drugi javni DNS ne smije biti na NIC-u; vanjski DNS se konfigurise kao forwarder na internom DNS serveru.'
     }
 }
 
-$resolveDnsCommand = Get-Command Resolve-DnsName -ErrorAction SilentlyContinue
 foreach ($srvDefinition in @(
         @{ Id = 'HC-DNS-001'; Name = "_ldap._tcp.dc._msdcs.$domainDns"; Service = 'LDAP DC locator' },
         @{ Id = 'HC-DNS-002'; Name = "_kerberos._tcp.dc._msdcs.$domainDns"; Service = 'Kerberos DC locator' }
     )) {
-    if ($null -eq $resolveDnsCommand) {
+    $srvResult = Resolve-HealthSrvRecords -Name $srvDefinition.Name
+    if ($srvResult.Success) {
+        $targets = @($srvResult.Targets | ForEach-Object { ([string]$_).TrimEnd('.').ToLowerInvariant() } | Sort-Object -Unique)
+        $missingDcs = @($dcNames | Where-Object { $targets -notcontains ([string]$_).TrimEnd('.').ToLowerInvariant() })
+        $status = if ($missingDcs.Count -gt 0) { 'Warning' } else { 'Pass' }
         Add-HealthCheck -Id $srvDefinition.Id -Category 'DNS' -Title "$($srvDefinition.Service) SRV zapisi postoje" `
-            -Status 'NotAssessed' -Target $srvDefinition.Name -ObjectType 'DNS SRV zapis' -Weight 8 `
-            -Evidence @{ Reason = 'Resolve-DnsName nije dostupan.' } `
-            -Recommendation 'Pokrenuti health test na podrzanom Windows management sistemu ili DC-u.'
+            -Status $status -Target $srvDefinition.Name -ObjectType 'DNS SRV zapis' -Weight 5 -CriticalOnFail -RequiredForScore `
+            -Evidence @{ Targets = $targets; MissingDomainControllers = $missingDcs; Method = $srvResult.Method } `
+            -Recommendation 'Provjeriti Netlogon DNS registraciju i _msdcs zonu. Svaki aktivni DC mora imati odgovarajuce locator zapise.'
+    }
+    else {
+        Add-HealthCheck -Id $srvDefinition.Id -Category 'DNS' -Title "$($srvDefinition.Service) SRV zapisi postoje" `
+            -Status 'Fail' -Target $srvDefinition.Name -ObjectType 'DNS SRV zapis' -Weight 5 -CriticalOnFail -RequiredForScore `
+            -Evidence @{ Error = $srvResult.Error; Output = $srvResult.Output; Method = $srvResult.Method } `
+            -Recommendation 'Provjeriti DNS client postavke DC-a, internu DNS zonu, Netlogon servis i registraciju SRV zapisa.'
+    }
+}
+
+if ($null -eq (Get-Command Get-DnsServerZone -ErrorAction SilentlyContinue)) {
+    Import-Module DnsServer -ErrorAction SilentlyContinue
+}
+foreach ($dcName in $dcNames) {
+    if ($null -eq (Get-Command Get-DnsServerZone -ErrorAction SilentlyContinue)) {
+        Add-HealthCheck -Id 'HC-DNS-ZONE-001' -Category 'DNS' -Title 'AD DNS zona i dynamic update konfiguracija su ispravni' `
+            -Status 'NotAssessed' -Target $dcName -ObjectType 'Domain controller DNS' -Weight 3 `
+            -Evidence @{ Reason = 'DnsServer PowerShell modul nije dostupan.' } -Source 'DnsServer modul' `
+            -Recommendation 'Instalirati DNS Server RSAT alate ili pokrenuti test direktno na DNS/DC serveru.'
         continue
     }
 
     try {
-        $srvRecords = @(Resolve-DnsName -Name $srvDefinition.Name -Type SRV -ErrorAction Stop)
-        $targets = @($srvRecords | ForEach-Object { $_.NameTarget } |
-            Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
-            ForEach-Object { ([string]$_).TrimEnd('.') } |
-            Sort-Object -Unique)
-        $missingDcs = @($dcNames | Where-Object { $targets -notcontains $_ })
-        $status = if ($targets.Count -eq 0) { 'Fail' } elseif ($missingDcs.Count -gt 0) { 'Warning' } else { 'Pass' }
-        Add-HealthCheck -Id $srvDefinition.Id -Category 'DNS' -Title "$($srvDefinition.Service) SRV zapisi postoje" `
-            -Status $status -Target $srvDefinition.Name -ObjectType 'DNS SRV zapis' -Weight 8 -CriticalOnFail `
-            -Evidence @{ Targets = $targets; MissingDomainControllers = $missingDcs } `
-            -Recommendation 'Provjeriti Netlogon DNS registraciju i _msdcs zonu. Svaki aktivni DC mora imati odgovarajuce locator zapise.'
+        $zones = @(Get-DnsServerZone -ComputerName $dcName -ErrorAction Stop)
+        $domainZone = @($zones | Where-Object { ([string]$_.ZoneName).TrimEnd('.').Equals($domainDns.TrimEnd('.'), [System.StringComparison]::OrdinalIgnoreCase) } | Select-Object -First 1)
+        $zoneStatus = if ($domainZone.Count -eq 0) {
+            'Fail'
+        }
+        elseif (-not [bool]$domainZone[0].IsDsIntegrated -or ([string]$domainZone[0].DynamicUpdate -notmatch '(?i)secure')) {
+            'Warning'
+        }
+        else {
+            'Pass'
+        }
+        Add-HealthCheck -Id 'HC-DNS-ZONE-001' -Category 'DNS' -Title 'AD DNS zona postoji i koristi AD-integraciju sa secure dynamic updates' `
+            -Status $zoneStatus -Target $dcName -ObjectType 'Domain controller DNS' -Weight 3 -CriticalOnFail `
+            -Evidence @{
+                ZoneFound = ($domainZone.Count -gt 0)
+                ZoneName = if ($domainZone.Count -gt 0) { $domainZone[0].ZoneName } else { '' }
+                IsDsIntegrated = if ($domainZone.Count -gt 0) { [bool]$domainZone[0].IsDsIntegrated } else { $false }
+                DynamicUpdate = if ($domainZone.Count -gt 0) { ConvertTo-HealthString $domainZone[0].DynamicUpdate } else { '' }
+                AvailableZones = @($zones | Select-Object -ExpandProperty ZoneName)
+            } -Source 'Get-DnsServerZone' `
+            -Recommendation 'Hostati AD zonu na internom DNS-u, preferirano kao AD-integrisanu zonu sa secure dynamic updates. Ne stavljati javne DNS servere na NIC DC-a.'
+
+        if ($null -ne (Get-Command Get-DnsServerForwarder -ErrorAction SilentlyContinue)) {
+            try {
+                $forwarder = Get-DnsServerForwarder -ComputerName $dcName -ErrorAction Stop
+                Add-HealthCheck -Id 'HC-DNS-FORWARDER-INFO' -Category 'DNS' -Title 'Konfigurisani vanjski DNS forwarderi' `
+                    -Status 'Pass' -Target $dcName -ObjectType 'Domain controller DNS' -Weight 0 `
+                    -Evidence @{ Forwarders = @($forwarder.IPAddress | ForEach-Object { ConvertTo-HealthString $_ }) } `
+                    -Source 'Get-DnsServerForwarder' `
+                    -Recommendation 'Vanjske DNS adrese pripadaju ovdje kao forwarderi, a ne u DNS client postavke mreznog adaptera DC-a.'
+            }
+            catch {
+            }
+        }
     }
     catch {
-        Add-HealthCheck -Id $srvDefinition.Id -Category 'DNS' -Title "$($srvDefinition.Service) SRV zapisi postoje" `
-            -Status 'Fail' -Target $srvDefinition.Name -ObjectType 'DNS SRV zapis' -Weight 8 -CriticalOnFail `
-            -Evidence @{ Error = $_.Exception.Message } `
-            -Recommendation 'Provjeriti DNS zonu, Netlogon servis i registraciju SRV zapisa.'
+        $dnsRoleExpected = [bool]$dcReachability[$dcName]['TCP53']
+        Add-HealthCheck -Id 'HC-DNS-ZONE-001' -Category 'DNS' -Title 'AD DNS zona i dynamic update konfiguracija su ispravni' `
+            -Status $(if ($dnsRoleExpected) { 'NotAssessed' } else { 'NotApplicable' }) -Target $dcName -ObjectType 'Domain controller DNS' -Weight 3 `
+            -Evidence @{ Error = $_.Exception.Message; Tcp53Reachable = $dnsRoleExpected } -Source 'Get-DnsServerZone' `
+            -Recommendation 'Ako DC hosta DNS, omoguciti administratorski pristup i provjeriti zonu. Ako DNS nije na DC-u, interni autoritativni DNS i dalje mora vracati sve AD SRV zapise.'
     }
 }
 
@@ -6065,7 +6572,7 @@ foreach ($dcName in $dcNames) {
         }
         Add-HealthCheck -Id "HC-SYSVOL-$share" -Category 'SYSVOL i Group Policy' -Title "$share share je dostupan" `
             -Status $shareStatus -Target $dcName -ObjectType 'Domain controller share' `
-            -Evidence @{ Path = $path; Accessible = $accessible; Error = $errorText; ErrorType = $errorType } -Weight 6 -CriticalOnFail `
+            -Evidence @{ Path = $path; Accessible = $accessible; Error = $errorText; ErrorType = $errorType } -Weight 6 -CriticalOnFail -RequiredForScore `
             -Source 'SMB UNC provjera' `
             -Recommendation "Provjeriti DFSR/SYSVOL inicijalizaciju, Netlogon servis i da li je $share share objavljen."
     }
@@ -6073,8 +6580,8 @@ foreach ($dcName in $dcNames) {
 
 if ($dcNames.Count -le 1) {
     Add-HealthCheck -Id 'HC-REPL-001' -Category 'Replikacija' -Title 'AD replikacija izmedju domain controllera' `
-        -Status 'NotAssessed' -Target $domainDns -ObjectType 'Domena' -Weight 20 `
-        -Evidence @{ DomainControllerCount = $dcNames.Count; Reason = 'Domena ima samo jedan DC.' } `
+        -Status 'NotApplicable' -Target $domainDns -ObjectType 'Domena' -Weight 20 `
+        -Evidence @{ DomainControllerCount = $dcNames.Count; Reason = 'Replikacija izmedju DC-eva nije primjenjiva jer domena ima samo jedan DC.' } `
         -Recommendation 'Dodati najmanje jos jedan domain controller radi redundanse, odrzavanja i oporavka.'
     Add-HealthCheck -Id 'HC-CONFIG-001' -Category 'AD konfiguracija' -Title 'Domena ima redundantne domain controllere' `
         -Status 'Warning' -Target $domainDns -ObjectType 'Domena' -Weight 6 `
@@ -6124,7 +6631,7 @@ elseif ($adModuleAvailable -and $null -ne (Get-Command Get-ADReplicationPartnerM
         }
 
         Add-HealthCheck -Id 'HC-REPL-001' -Category 'Replikacija' -Title 'AD replikacijski partneri nemaju greske ili veliko kasnjenje' `
-            -Status $replicationStatus -Target $domainDns -ObjectType 'Domena' -Weight 20 -CriticalOnFail `
+            -Status $replicationStatus -Target $domainDns -ObjectType 'Domena' -Weight 20 -CriticalOnFail -RequiredForScore `
             -Evidence @{
                 PartnerRecords = $replicationMetadata.Count
                 CurrentFailures = $replicationFailures.Count
@@ -6140,7 +6647,7 @@ elseif ($adModuleAvailable -and $null -ne (Get-Command Get-ADReplicationPartnerM
     }
     catch {
         Add-HealthCheck -Id 'HC-REPL-001' -Category 'Replikacija' -Title 'AD replikacijski partneri nemaju greske ili veliko kasnjenje' `
-            -Status 'NotAssessed' -Target $domainDns -ObjectType 'Domena' -Weight 20 `
+            -Status 'NotAssessed' -Target $domainDns -ObjectType 'Domena' -Weight 20 -RequiredForScore `
             -Evidence @{ Error = $_.Exception.Message } `
             -Recommendation 'Pokrenuti sa nalogom koji moze citati replication metadata ili koristiti management host sa AD DS RSAT alatima.'
     }
@@ -6161,14 +6668,14 @@ else {
             'Pass'
         }
         Add-HealthCheck -Id 'HC-REPL-001' -Category 'Replikacija' -Title 'Repadmin replication summary nema prijavljene greske' `
-            -Status $replicationStatus -Target $domainDns -ObjectType 'Domena' -Weight 20 -CriticalOnFail `
+            -Status $replicationStatus -Target $domainDns -ObjectType 'Domena' -Weight 20 -CriticalOnFail -RequiredForScore `
             -Evidence @{ ExitCode = $repadminResult.ExitCode; TimedOut = $repadminResult.TimedOut; FailureRowsDetected = $repadminHasFailures; Output = $repadminResult.StdOut; Error = $repadminResult.StdErr } `
             -Source 'repadmin /replsummary' `
             -Recommendation 'Pregledati repadmin /showrepl izlaz za svaki DC i otkloniti replication error kodove.'
     }
     else {
         Add-HealthCheck -Id 'HC-REPL-001' -Category 'Replikacija' -Title 'AD replikacija izmedju domain controllera' `
-            -Status 'NotAssessed' -Target $domainDns -ObjectType 'Domena' -Weight 20 `
+            -Status 'NotAssessed' -Target $domainDns -ObjectType 'Domena' -Weight 20 -RequiredForScore `
             -Evidence @{ Reason = 'AD replication cmdleti i repadmin nisu dostupni.' } `
             -Recommendation 'Instalirati AD DS RSAT alate na management sistem sa kojeg se pokrece health test.'
     }
@@ -6184,6 +6691,7 @@ if ($adModuleAvailable -and -not [string]::IsNullOrWhiteSpace([string]$domain.Di
         $gpoTruncated = $gpoObjects.Count -gt $MaxGpoChecks
         $gposToCheck = @($gpoObjects | Select-Object -First ([math]::Max(1, $MaxGpoChecks)))
         $missingFolders = New-Object System.Collections.Generic.List[object]
+        $invalidGptIniFiles = New-Object System.Collections.Generic.List[object]
         $versionMismatches = New-Object System.Collections.Generic.List[object]
         $unavailableRoots = New-Object System.Collections.Generic.List[string]
         $checkedRootCount = 0
@@ -6209,8 +6717,17 @@ if ($adModuleAvailable -and -not [string]::IsNullOrWhiteSpace([string]$domain.Di
                     $missingFolders.Add([pscustomobject]@{ DC = $dcName; GPO = $gpo.Name; DisplayName = $gpo.DisplayName }) | Out-Null
                     continue
                 }
-                $gptVersion = Get-GptIniVersion -Path (Join-Path $gpoFolder 'GPT.INI')
-                if ($null -ne $gptVersion -and [int64]$gpo.versionNumber -ne [int64]$gptVersion) {
+                $gptIniPath = Join-Path $gpoFolder 'GPT.INI'
+                $gptVersion = Get-GptIniVersion -Path $gptIniPath
+                if ($null -eq $gptVersion) {
+                    $invalidGptIniFiles.Add([pscustomobject]@{
+                        DC = $dcName
+                        GPO = $gpo.Name
+                        DisplayName = $gpo.DisplayName
+                        Path = $gptIniPath
+                    }) | Out-Null
+                }
+                elseif ([int64]$gpo.versionNumber -ne [int64]$gptVersion) {
                     $versionMismatches.Add([pscustomobject]@{
                         DC = $dcName
                         GPO = $gpo.Name
@@ -6225,7 +6742,7 @@ if ($adModuleAvailable -and -not [string]::IsNullOrWhiteSpace([string]$domain.Di
         $gpoStatus = if ($checkedRootCount -eq 0 -or $gpoTruncated) {
             'NotAssessed'
         }
-        elseif ($missingFolders.Count -gt 0) {
+        elseif ($gpoObjects.Count -lt 2 -or $missingFolders.Count -gt 0 -or $invalidGptIniFiles.Count -gt 0) {
             'Fail'
         }
         elseif ($versionMismatches.Count -gt 0 -or $unavailableRoots.Count -gt 0) {
@@ -6240,9 +6757,11 @@ if ($adModuleAvailable -and -not [string]::IsNullOrWhiteSpace([string]$domain.Di
             CheckedDomainControllers = $checkedRootCount
             Truncated = $gpoTruncated
             MissingFolders = $missingFolders.Count
+            InvalidOrMissingGptIni = $invalidGptIniFiles.Count
             VersionMismatches = $versionMismatches.Count
             UnavailableSysvolRoots = @($unavailableRoots.ToArray())
             MissingFolderExamples = @($missingFolders.ToArray() | Select-Object -First 20)
+            InvalidGptIniExamples = @($invalidGptIniFiles.ToArray() | Select-Object -First 20)
             VersionMismatchExamples = @($versionMismatches.ToArray() | Select-Object -First 20)
         }
     }
@@ -6251,7 +6770,7 @@ if ($adModuleAvailable -and -not [string]::IsNullOrWhiteSpace([string]$domain.Di
     }
 }
 Add-HealthCheck -Id 'HC-GPO-001' -Category 'SYSVOL i Group Policy' -Title 'GPO objekti i SYSVOL sadrzaj su konzistentni' `
-    -Status $gpoStatus -Target $domainDns -ObjectType 'Group Policy' -Weight 15 -CriticalOnFail `
+    -Status $gpoStatus -Target $domainDns -ObjectType 'Group Policy' -Weight 15 -CriticalOnFail -RequiredForScore `
     -Evidence $gpoEvidence -Source 'AD groupPolicyContainer / SYSVOL GPT.INI' `
     -Recommendation 'Popraviti nedostajuce GPO foldere ili version mismatch tek nakon potvrde replikacijskog stanja i backup-a. Ne kopirati SYSVOL sadrzaj naslijepo.'
 
@@ -6284,7 +6803,7 @@ if ($null -ne $w32tmPath) {
         'Pass'
     }
     Add-HealthCheck -Id 'HC-TIME-001' -Category 'Vrijeme' -Title 'Vrijeme domain controllera je sinhronizovano' `
-        -Status $timeStatus -Target $domainDns -ObjectType 'Domena' -Weight 10 -CriticalOnFail `
+        -Status $timeStatus -Target $domainDns -ObjectType 'Domena' -Weight 10 -CriticalOnFail -RequiredForScore `
         -Evidence @{ MaxOffsetSeconds = [math]::Round($maxOffset, 3); WarningSeconds = $TimeWarningSeconds; FailureSeconds = $TimeFailureSeconds; ExitCode = $timeResult.ExitCode; Output = $timeResult.StdOut; Error = $timeResult.StdErr } `
         -Source 'w32tm /monitor' `
         -Recommendation 'Provjeriti Windows Time servis i hijerarhiju. Forest-root PDC treba koristiti odobren pouzdan vanjski izvor, a ostali domain clanovi domensku hijerarhiju.'
@@ -6311,7 +6830,7 @@ if ($null -ne $w32tmPath) {
 }
 else {
     Add-HealthCheck -Id 'HC-TIME-001' -Category 'Vrijeme' -Title 'Vrijeme domain controllera je sinhronizovano' `
-        -Status 'NotAssessed' -Target $domainDns -ObjectType 'Domena' -Weight 10 `
+        -Status 'NotAssessed' -Target $domainDns -ObjectType 'Domena' -Weight 10 -RequiredForScore `
         -Evidence @{ Reason = 'w32tm.exe nije dostupan.' } `
         -Recommendation 'Pokrenuti test na Windows management sistemu ili domain controlleru.'
 }
@@ -6346,10 +6865,29 @@ if ($adModuleAvailable -and $null -ne (Get-Command Get-ADReplicationSite -ErrorA
         $sites = @(Get-ADReplicationSite @adParams -Filter * -ErrorAction Stop)
         $subnets = @(Get-ADReplicationSubnet @adParams -Filter * -ErrorAction Stop)
         $dcSites = @($domainControllers | ForEach-Object { ConvertTo-HealthString $_.Site } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        $subnetNames = @($subnets | ForEach-Object { ConvertTo-HealthString $_.Name })
+        $unmappedDcAddresses = @($dcAddressMap.GetEnumerator() | ForEach-Object {
+            $dcNameForAddress = $_.Key
+            foreach ($address in @($_.Value)) {
+                $parsed = $null
+                if (-not [System.Net.IPAddress]::TryParse(([string]$address).Split('%')[0], [ref]$parsed) -or
+                    $parsed.AddressFamily -ne [System.Net.Sockets.AddressFamily]::InterNetwork -or
+                    [System.Net.IPAddress]::IsLoopback($parsed)) {
+                    continue
+                }
+                $mapped = @($subnetNames | Where-Object { Test-HealthIpv4InCidr -Address $parsed.IPAddressToString -Cidr $_ }).Count -gt 0
+                if (-not $mapped) {
+                    [pscustomobject]@{ DomainController = $dcNameForAddress; Address = $parsed.IPAddressToString }
+                }
+            }
+        })
         $siteStatus = if ($dcSites.Count -lt $dcNames.Count) {
             'Fail'
         }
-        elseif ($sites.Count -gt 1 -and $subnets.Count -eq 0) {
+        elseif ($subnets.Count -eq 0) {
+            'Warning'
+        }
+        elseif ($unmappedDcAddresses.Count -gt 0) {
             'Warning'
         }
         else {
@@ -6357,7 +6895,7 @@ if ($adModuleAvailable -and $null -ne (Get-Command Get-ADReplicationSite -ErrorA
         }
         Add-HealthCheck -Id 'HC-CONFIG-003' -Category 'AD konfiguracija' -Title 'AD Sites/Subnets konfiguracija pokriva domain controllere' `
             -Status $siteStatus -Target $domainDns -ObjectType 'AD topology' -Weight 4 `
-            -Evidence @{ Sites = @($sites | Select-Object -ExpandProperty Name); SubnetCount = $subnets.Count; DomainControllerSites = $dcSites } `
+            -Evidence @{ Sites = @($sites | Select-Object -ExpandProperty Name); Subnets = $subnetNames; SubnetCount = $subnets.Count; DomainControllerSites = $dcSites; UnmappedDomainControllerAddresses = $unmappedDcAddresses } `
             -Recommendation 'Definisati mrezne subnete i mapirati ih na odgovarajuce AD site-ove. Provjeriti site linkove i raspored replikacije.'
     }
     catch {
@@ -6376,28 +6914,44 @@ else {
 
 $dcdiagPath = Get-HealthCommandPath -Name 'dcdiag.exe'
 if ($null -eq $dcdiagPath) {
-    Add-HealthCheck -Id 'HC-DCDIAG-000' -Category 'DCDiag' -Title 'DCDiag alat je dostupan' `
-        -Status 'NotAssessed' -Target $env:COMPUTERNAME -ObjectType 'Collector' -Weight 5 `
-        -Evidence @{ Reason = 'dcdiag.exe nije pronadjen.' } `
-        -Recommendation 'Instalirati AD DS RSAT alate ili pokrenuti test na domain controlleru.'
+    Add-HealthCheck -Id 'HC-DCDIAG-000' -Category 'DCDiag' -Title 'Microsoft DCDiag core testovi su izvrseni' `
+        -Status 'NotAssessed' -Target $env:COMPUTERNAME -ObjectType 'Collector' -Weight 10 -RequiredForScore `
+        -Evidence @{ Reason = 'dcdiag.exe nije pronadjen ni kroz PATH, System32 ili Sysnative.' } `
+        -Recommendation 'Pokrenuti test na domain controlleru ili management serveru sa kompletnim AD DS RSAT alatima. Bez DCDiag rezultata Health score se ne objavljuje.'
 }
 else {
     foreach ($dcName in $dcNames) {
         $diagResult = Invoke-HealthNativeCommand -FilePath $dcdiagPath -Arguments @("/s:$dcName", '/q') -TimeoutSeconds $NativeCommandTimeoutSeconds
         $diagStatus = Get-DcdiagQuietResultStatus -Result $diagResult
-        Add-HealthCheck -Id 'HC-DCDIAG-001' -Category 'DCDiag' -Title 'Osnovni DCDiag testovi prolaze' `
+        Add-HealthCheck -Id 'HC-DCDIAG-001' -Category 'DCDiag' -Title 'DCDiag default core testovi prolaze bez greske' `
             -Status $diagStatus -Target $dcName -ObjectType 'Domain controller' `
-            -Weight 6 -CriticalOnFail -Evidence @{ ExitCode = $diagResult.ExitCode; TimedOut = $diagResult.TimedOut; Output = $diagResult.StdOut; Error = $diagResult.StdErr } `
+            -Weight 10 -CriticalOnFail -RequiredForScore -Evidence @{ Executable = $dcdiagPath; ExitCode = $diagResult.ExitCode; TimedOut = $diagResult.TimedOut; Output = $diagResult.StdOut; Error = $diagResult.StdErr } `
             -Source 'dcdiag /q' `
-            -Recommendation 'Pokrenuti dcdiag /v za detalje neuspjelog testa i otkloniti uzrok prije forsiranja replikacije ili rucnih SYSVOL promjena.'
+            -Recommendation 'Pregledati prikazani DCDiag output i zatim pokrenuti dcdiag /s:<DC> /v za puni kontekst. Ne tretirati otvorene portove kao zamjenu za ove testove.'
 
-        $dnsDiagResult = Invoke-HealthNativeCommand -FilePath $dcdiagPath -Arguments @("/s:$dcName", '/test:DNS', '/DnsBasic', '/q') -TimeoutSeconds $NativeCommandTimeoutSeconds
+        $securityDiagResult = Invoke-HealthNativeCommand -FilePath $dcdiagPath -Arguments @("/s:$dcName", '/test:CheckSecurityError', '/q') -TimeoutSeconds $NativeCommandTimeoutSeconds
+        $securityDiagStatus = Get-DcdiagQuietResultStatus -Result $securityDiagResult
+        Add-HealthCheck -Id 'HC-DCDIAG-SECURITY' -Category 'DCDiag' -Title 'DCDiag CheckSecurityError prolazi za KDC, SPN, machine account i LDAP/RPC sigurnost' `
+            -Status $securityDiagStatus -Target $dcName -ObjectType 'Domain controller' `
+            -Weight 8 -CriticalOnFail -RequiredForScore -Evidence @{ Executable = $dcdiagPath; ExitCode = $securityDiagResult.ExitCode; TimedOut = $securityDiagResult.TimedOut; Output = $securityDiagResult.StdOut; Error = $securityDiagResult.StdErr } `
+            -Source 'dcdiag /test:CheckSecurityError /q' `
+            -Recommendation 'Otkloniti prijavljene KDC, SPN, DC machine account, LDAP/RPC, prava ili time-skew probleme. Access denied u ovom testu je nalaz, ne razlog da se test preskoci.'
+
+        $advertisingDiagResult = Invoke-HealthNativeCommand -FilePath $dcdiagPath -Arguments @("/s:$dcName", '/test:Advertising', '/q') -TimeoutSeconds $NativeCommandTimeoutSeconds
+        $advertisingDiagStatus = Get-DcdiagQuietResultStatus -Result $advertisingDiagResult
+        Add-HealthCheck -Id 'HC-DCDIAG-ADVERTISING' -Category 'AD osnovne usluge' -Title 'DC se pravilno oglasava kao LDAP/KDC/GC server za svoje role' `
+            -Status $advertisingDiagStatus -Target $dcName -ObjectType 'Domain controller' `
+            -Weight 5 -CriticalOnFail -RequiredForScore -Evidence @{ Executable = $dcdiagPath; ExitCode = $advertisingDiagResult.ExitCode; TimedOut = $advertisingDiagResult.TimedOut; Output = $advertisingDiagResult.StdOut; Error = $advertisingDiagResult.StdErr } `
+            -Source 'dcdiag /test:Advertising /q' `
+            -Recommendation 'Provjeriti Netlogon, KDC, NTDS, DNS locator zapise i role koje DC mora oglasavati.'
+
+        $dnsDiagResult = Invoke-HealthNativeCommand -FilePath $dcdiagPath -Arguments @("/s:$dcName", '/test:DNS', '/DnsAll', '/q') -TimeoutSeconds $NativeCommandTimeoutSeconds
         $dnsDiagStatus = Get-DcdiagQuietResultStatus -Result $dnsDiagResult
-        Add-HealthCheck -Id 'HC-DNS-003' -Category 'DNS' -Title 'DCDiag DNS Basic test prolazi' `
+        Add-HealthCheck -Id 'HC-DNS-003' -Category 'DNS' -Title 'DCDiag DNS All testovi prolaze' `
             -Status $dnsDiagStatus -Target $dcName -ObjectType 'Domain controller DNS' `
-            -Weight 8 -CriticalOnFail -Evidence @{ ExitCode = $dnsDiagResult.ExitCode; TimedOut = $dnsDiagResult.TimedOut; Output = $dnsDiagResult.StdOut; Error = $dnsDiagResult.StdErr } `
-            -Source 'dcdiag /test:DNS /DnsBasic /q' `
-            -Recommendation 'Pregledati SOA, zone, forwardere, registraciju A/SRV zapisa i DNS client postavke domain controllera.'
+            -Weight 8 -CriticalOnFail -RequiredForScore -Evidence @{ Executable = $dcdiagPath; ExitCode = $dnsDiagResult.ExitCode; TimedOut = $dnsDiagResult.TimedOut; Output = $dnsDiagResult.StdOut; Error = $dnsDiagResult.StdErr } `
+            -Source 'dcdiag /test:DNS /DnsAll /q' `
+            -Recommendation 'Pregledati DNS client konfiguraciju, SOA/zone, delegaciju, forwardere, dynamic update i registraciju A/SRV zapisa.'
     }
 }
 
@@ -6408,12 +6962,14 @@ $summary = [pscustomobject][ordered]@{
     DomainDnsRoot = $domainDns
     Forest = if ($null -ne $forest) { ConvertTo-HealthString $forest.Name } else { '' }
     GeneratedAt = (Get-Date).ToString('s')
-    Model = 'Weighted AD Health model v1'
-    HealthScore = [int]$healthAnalysis.Score
+    Model = 'Protocol-aware AD Health model v2'
+    HealthScore = $healthAnalysis.Score
+    HealthScoreDisplay = $healthAnalysis.ScoreDisplay
+    HealthScoreAvailable = [bool]$healthAnalysis.ScoreAvailable
     HealthStatus = $healthAnalysis.Status
     HealthCoveragePercent = [int]$healthAnalysis.CoveragePercent
     HealthScoreDetails = $healthAnalysis
-    RiskScore = [int]$healthAnalysis.Score
+    RiskScore = $healthAnalysis.Score
     RiskScoreStatus = $healthAnalysis.Status
     RiskScoreComplete = [bool]$healthAnalysis.IsComplete
     TotalChecks = [int]$healthAnalysis.Total
@@ -6422,6 +6978,7 @@ $summary = [pscustomobject][ordered]@{
     Warnings = [int]$healthAnalysis.Warnings
     Failed = [int]$healthAnalysis.Failed
     NotAssessed = [int]$healthAnalysis.NotAssessed
+    NotApplicable = [int]$healthAnalysis.NotApplicable
     Critical = @($script:Checks | Where-Object { $_.Severity -eq 'Critical' }).Count
     High = @($script:Checks | Where-Object { $_.Severity -eq 'High' }).Count
     Medium = @($script:Checks | Where-Object { $_.Severity -eq 'Medium' }).Count
@@ -6431,7 +6988,7 @@ $summary = [pscustomobject][ordered]@{
     Computers = 0
     DomainControllers = $dcNames.Count
     CategoriesHealthy = @($healthAnalysis.CategoryScores | Where-Object { $_.Status -eq 'Zdravo' }).Count
-    CategoriesTotal = @($healthAnalysis.CategoryScores).Count
+    CategoriesTotal = @($healthAnalysis.CategoryScores | Where-Object { $_.Status -ne 'Nije primjenjivo' }).Count
     CollectionWarnings = $script:CollectionWarnings.Count
 }
 
